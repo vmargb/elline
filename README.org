@@ -1,22 +1,31 @@
 #+TITLE: elline.el
 #+SUBTITLE: An elegant status line without extra fluff
-#+AUTHOR: Your Name
+#+AUTHOR: vmargb
 #+OPTIONS: toc:2 num:nil
 
 #+HTML: <hr>
 
+*Flat Style*
 #+CAPTION: Flat style
 #+ATTR_ORG: :width 800
 [[./screenshots/flat.png]]
 
+*Block Style: None*
+#+CAPTION: Block style with no separators
+#+ATTR_ORG: :width 800
+[[./screenshots/blocks-none.png]]
+
+*Block style: Arrow*
 #+CAPTION: Blocks style with arrow separators
 #+ATTR_ORG: :width 800
 [[./screenshots/blocks-arrow.png]]
 
+*Block style: Curved*
 #+CAPTION: Blocks style with curve separators
 #+ATTR_ORG: :width 800
 [[./screenshots/blocks-curve.png]]
 
+*Block style: Slanted*
 #+CAPTION: Blocks style with slant separators
 #+ATTR_ORG: :width 800
 [[./screenshots/blocks-slant.png]]
