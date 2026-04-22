@@ -1,80 +1,98 @@
-** elline.el
-/An elegant status line without extra fluff/
+#+TITLE: elline.el
+#+SUBTITLE: An elegant status line without extra fluff
+#+AUTHOR: Your Name
+#+OPTIONS: toc:2 num:nil
 
------
+#+HTML: <hr>
 
-**Flat Style**
-
+#+CAPTION: Flat style
 #+ATTR_ORG: :width 800
 [[./screenshots/flat.png]]
 
-**Blocks Style: None**
-
-#+ATTR_ORG: :width 800
-[[./screenshots/blocks-none.png]]
-
-**Blocks Style: Arrow**
-
+#+CAPTION: Blocks style with arrow separators
 #+ATTR_ORG: :width 800
 [[./screenshots/blocks-arrow.png]]
 
-**Blocks Style: Curve**
-
+#+CAPTION: Blocks style with curve separators
 #+ATTR_ORG: :width 800
 [[./screenshots/blocks-curve.png]]
 
-**Blocks Style: Slant**
-
+#+CAPTION: Blocks style with slant separators
 #+ATTR_ORG: :width 800
 [[./screenshots/blocks-slant.png]]
 
------
+#+HTML: <hr>
 
 * Introduction
 
-  =elline.el= is a small & lightweight mode line for Emacs, designed to provide the same visual appeal as doom-modeline while remaining minimal and unobtrusive. It is built to be modular, efficient, and visually consistent across all themes and buffer states.
+  =elline.el= is a lightweight, modular mode line for Emacs. It delivers the visual polish of doom-modeline while remaining minimal and customizable without extra fluff.
 
-** Features
+* Features
 
-  - *Theme-adaptive colors*: Automatically blends with your Emacs theme for a seamless look.
-  - *Flymake/Flycheck diagnostics*: Real-time error and warning counts with visual indicators.
-  - *Evil mode state indicator*: Visually distinct Evil state with nerd-icons.
-  - *Modular design*: Left, center, and right segments are easily customizable.
-  - *Responsive layout*: Segments hide gracefully in narrow windows.
-  - *Multiple separator styles*: Choose from none, arrow, curve, or slant for block-style mode lines.
-  - *Height customization*: Adjust the mode line height to your preference.
-  - *Time display*: Optionally show the current time in the mode line.
-  - *Inactive window dimming*: Clearly distinguishes inactive buffers.
+  - *Theme-adaptive colors* :: Blends foreground/background with your active theme using dynamic color blending.
+  - *Diagnostic indicators* :: Flymake/Flycheck error, warning, and info counts with severity-aware coloring.
+  - *Evil mode integration* :: Visual state indicator with icon support (normal, insert, visual, etc.).
+  - *Modular zones* :: Left, center, and right segments composed via joiner functions for seamless customization.
+  - *Responsive layout* :: Non-essential segments hide automatically in narrow windows.
+  - *Separator styles* :: Choose none, arrow, curve, or slant glyphs for block-style mode lines.
+  - *Height control* :: Adjust mode line height via =elline-height= (default: 120, i.e., 1.2× font size).
+  - *Optional clock* :: Toggle HH:MM display at the far right.
+  - *Inactive window dimming* :: Clear visual distinction between active and inactive buffers.
 
 * Installation
-This is currently not on Melpa, either use =package-vc-install= or do:
+This package is currently not on =Melpa=, for now use:
 
-     #+BEGIN_SRC emacs-lisp
-     (add-to-list 'load-path "/path/to/elline")
-     (require 'elline)
-     (elline-mode 1)
-     #+END_SRC
+** =package-vc-install= (Emacs 29+)
+#+BEGIN_SRC emacs-lisp
+(use-package arrow
+  :vc (:url "https://github.com/vmargb/elline")
+  :config
+  (elline-mode 1))
+#+END_SRC
 
-* Usage
+** Manual installation
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "/path/to/elline")
+(require 'elline)
+(elline-mode 1)
+#+END_SRC
 
-  - Toggle between styles with =C-c m b= (flat/blocks).
-  - Cycle through separator styles with =C-c m s=.
-  - Toggle the time display with =C-c m t=.
-  - Cycle through icon providers with =C-c m i=.
 
-* Styles
+* Quick Start
 
-  elline.el supports two primary styles: flat and blocks. The blocks style offers additional separator options.
+  1. Enable =elline-mode= globally.
+  2. Toggle style with =C-c m b= (flat <-> blocks).
+  3. Cycle separators with =C-c m s= (none -> arrow -> curve -> slant).
+  4. Optional: show clock with =C-c m t=, cycle icon backends with =C-c m i=.
 
-*Flat Style*
+* Configuration
 
-  A minimal, borderless mode line that blends seamlessly with your theme. Ideal for a clean, unobtrusive look.
+  All options are customizable via =M-x customize-group RET elline RET=, or set directly:
 
-*Blocks Style*
+#+BEGIN_SRC emacs-lisp
+(setq elline-height 100                    ; Slightly more compact
+      elline-show-time t                   ; Show clock by default
+      elline-theme-style 'blocks           ; Start with blocks style
+      elline-separator-style 'curve        ; Use curved separators
+      elline-icon-provider 'nerd-icons)    ; Icon backend
+#+END_SRC
 
-  A more structured mode line with visible segment boundaries. Choose from the following separator styles:
+  *Key variables*:
+  - =elline-height= :: Integer, mode line height in 1/10 pt units.
+  - =elline-theme-style= :: =flat= or =blocks=.
+  - =elline-separator-style= :: =none=, =arrow=, =curve=, or =slant=.
+  - =elline-icon-provider= :: =nerd-icons=, =all-the-icons=, or =none=.
+  - =elline-separator-raise= :: Float, vertical adjustment for separator glyphs (negative lowers).
 
-  - =none=: No visible separators, just clear segment boundaries.
-  - =arrow=: Uses arrow glyphs
-  - =curve=: Uses curved glyphs
-  - =slant=: Uses slanted glyphs
+* Troubleshooting
+
+** Separators appear misaligned
+   If powerline/nerd glyphs render slightly above the mode line baseline:
+   - Adjust =elline-separator-raise= (try -0.08 to -0.15 for Iosevka Nerd Font).
+   - Ensure your font is properly patched and Emacs is using the correct variant.
+   - Restart Emacs after font changes to clear rendering caches.
+
+** Icons not displaying
+   - Verify =nerd-icons= or =all-the-icons= is installed and fonts are installed system-wide.
+   - Run =M-x nerd-icons-install-fonts= if using the nerd-icons backend.
+   - Set =elline-icon-provider= to =none= to fall back to text-only indicators.
