@@ -1,0 +1,75 @@
+* Introduction
+
+  elline.el is a lightweight mode line for Emacs, designed to provide the same visual appeal as doom-modeline while remaining minimal and unobtrusive. It is built to be modular, efficient, and visually consistent across all themes and buffer states.
+
+* Features
+
+  - **Theme-adaptive colors**: Automatically blends with your Emacs theme for a seamless look.
+  - **Flymake/Flycheck diagnostics**: Real-time error and warning counts with visual indicators.
+  - **Evil mode state indicator**: Visually distinct Evil state with nerd-icons.
+  - **Modular design**: Left, center, and right segments are easily customizable.
+  - **Responsive layout**: Segments hide gracefully in narrow windows.
+  - **Multiple separator styles**: Choose from none, arrow, curve, or slant for block-style mode lines.
+  - **Height customization**: Adjust the mode line height to your preference.
+  - **Time display**: Optionally show the current time in the mode line.
+  - **Inactive window dimming**: Clearly distinguishes inactive buffers.
+
+* Installation
+This is currently not on Melpa, either use =package-vc-install= or do:
+
+     #+BEGIN_SRC emacs-lisp
+     (add-to-list 'load-path "/path/to/elline.el")
+     (require 'elline)
+     (elline-mode 1)
+     #+END_SRC
+
+* Usage
+
+  - Toggle between styles with =C-c m b= (flat/blocks).
+  - Cycle through separator styles with =C-c m s=.
+  - Toggle the time display with =C-c m t=.
+  - Cycle through icon providers with =C-c m i=.
+
+* Styles
+
+  elline.el supports two primary styles: flat and blocks. The blocks style offers additional separator options.
+
+**Flat Style**
+
+  A minimal, borderless mode line that blends seamlessly with your theme. Ideal for a clean, unobtrusive look.
+
+**Blocks Style**
+
+  A more structured mode line with visible segment boundaries. Choose from the following separator styles:
+
+  - =none=: No visible separators, just clear segment boundaries.
+  - =arrow=: Uses arrow glyphs (e.g., , ) for segment transitions.
+  - =curve=: Uses curved glyphs (e.g., , ) for a softer look.
+  - =slant=: Uses slanted glyphs (e.g., , ) for a dynamic feel.
+
+* Screenshots
+
+# **Flat Style**
+
+# #+ATTR_ORG: :width 800
+# [[./screenshots/flat.png]]
+
+# **Blocks Style: None**
+
+# #+ATTR_ORG: :width 800
+# [[./screenshots/blocks-none.png]]
+
+# **Blocks Style: Arrow**
+
+# #+ATTR_ORG: :width 800
+# [[./screenshots/blocks-arrow.png]]
+
+# **Blocks Style: Curve**
+
+# #+ATTR_ORG: :width 800
+# [[./screenshots/blocks-curve.png]]
+
+# **Blocks Style: Slant**
+
+# #+ATTR_ORG: :width 800
+# [[./screenshots/blocks-slant.png]]
