@@ -4,15 +4,15 @@
 
 * Features
 
-  - **Theme-adaptive colors**: Automatically blends with your Emacs theme for a seamless look.
-  - **Flymake/Flycheck diagnostics**: Real-time error and warning counts with visual indicators.
-  - **Evil mode state indicator**: Visually distinct Evil state with nerd-icons.
-  - **Modular design**: Left, center, and right segments are easily customizable.
-  - **Responsive layout**: Segments hide gracefully in narrow windows.
-  - **Multiple separator styles**: Choose from none, arrow, curve, or slant for block-style mode lines.
-  - **Height customization**: Adjust the mode line height to your preference.
-  - **Time display**: Optionally show the current time in the mode line.
-  - **Inactive window dimming**: Clearly distinguishes inactive buffers.
+  - *Theme-adaptive colors*: Automatically blends with your Emacs theme for a seamless look.
+  - *Flymake/Flycheck diagnostics*: Real-time error and warning counts with visual indicators.
+  - *Evil mode state indicator*: Visually distinct Evil state with nerd-icons.
+  - *Modular design*: Left, center, and right segments are easily customizable.
+  - *Responsive layout*: Segments hide gracefully in narrow windows.
+  - *Multiple separator styles*: Choose from none, arrow, curve, or slant for block-style mode lines.
+  - *Height customization*: Adjust the mode line height to your preference.
+  - *Time display*: Optionally show the current time in the mode line.
+  - *Inactive window dimming*: Clearly distinguishes inactive buffers.
 
 * Installation
 This is currently not on Melpa, either use =package-vc-install= or do:
@@ -34,18 +34,18 @@ This is currently not on Melpa, either use =package-vc-install= or do:
 
   elline.el supports two primary styles: flat and blocks. The blocks style offers additional separator options.
 
-**Flat Style**
+*Flat Style*
 
   A minimal, borderless mode line that blends seamlessly with your theme. Ideal for a clean, unobtrusive look.
 
-**Blocks Style**
+*Blocks Style*
 
   A more structured mode line with visible segment boundaries. Choose from the following separator styles:
 
   - =none=: No visible separators, just clear segment boundaries.
-  - =arrow=: Uses arrow glyphs (e.g., , ) for segment transitions.
-  - =curve=: Uses curved glyphs (e.g., , ) for a softer look.
-  - =slant=: Uses slanted glyphs (e.g., , ) for a dynamic feel.
+  - =arrow=: Uses arrow glyphs (e.g., , )
+  - =curve=: Uses curved glyphs (e.g., , )
+  - =slant=: Uses slanted glyphs (e.g., , )
 
 * Screenshots
 
