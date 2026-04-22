@@ -7,27 +7,27 @@
 
 *Flat Style*
 #+CAPTION: Flat style
-#+ATTR_ORG: :width 800
+#+ATTR_ORG: :width 900
 [[./screenshots/flat.png]]
 
 *Block Style: None*
 #+CAPTION: Block style with no separators
-#+ATTR_ORG: :width 800
+#+ATTR_ORG: :width 900
 [[./screenshots/blocks-none.png]]
 
 *Block style: Arrow*
 #+CAPTION: Blocks style with arrow separators
-#+ATTR_ORG: :width 800
+#+ATTR_ORG: :width 900
 [[./screenshots/blocks-arrow.png]]
 
 *Block style: Curved*
 #+CAPTION: Blocks style with curve separators
-#+ATTR_ORG: :width 800
+#+ATTR_ORG: :width 900
 [[./screenshots/blocks-curve.png]]
 
 *Block style: Slanted*
 #+CAPTION: Blocks style with slant separators
-#+ATTR_ORG: :width 800
+#+ATTR_ORG: :width 900
 [[./screenshots/blocks-slant.png]]
 
 #+HTML: <hr>
