@@ -74,6 +74,11 @@ Negative values lower the glyph, positive values raise it."
   :type 'float
   :group 'elline)
 
+(defcustom elline-show-project t
+  "If non-nil, show the current project or tab name in the mode-line."
+  :type 'boolean
+  :group 'elline)
+
 ;; Theme-adaptive colour handling
 ;; -------------------------------------------------------------------------
 
@@ -284,6 +289,31 @@ BG defaults to `bg-main`."
     (elline--seg (concat (when remote (concat (elline--icon 'oct "globe" "🌐") " ")) name)
                       (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
 
+(defun elline--project ()
+  "Show the current project name from project.el or tab-bar."
+  (when (and elline-show-project (> (window-width) 40))
+    (let ((name nil)
+          (icon (elline--icon 'oct "repo" "📁")))
+      ;; prefer project.el
+      (when (fboundp 'project-current)
+        (let ((proj (ignore-errors (project-current))))
+          (when proj
+            (setq name (if (fboundp 'project-name)
+                           (project-name proj)
+                         (file-name-nondirectory
+                          (directory-file-name (project-root proj))))))))
+      ;; fallback to tab-bar tab name (useful for tabspaces like projects)
+      (unless name
+        (when (and (bound-and-true-p tab-bar-mode)
+                   (fboundp 'tab-bar-tab-name-current))
+          (let ((tab-name (tab-bar-tab-name-current)))
+            ;; only use the tab name if it differs from the buffer name
+            (when (and tab-name (not (string= tab-name (buffer-name))))
+              (setq name tab-name)))))
+      (when name
+        (elline--seg name (elline--color 'bg-alt) (elline--color 'accent) icon)))))
+
+
 (defun elline--git ()
   (when (and vc-mode (stringp vc-mode))
     (let ((backend (ignore-errors (vc-backend buffer-file-name))))
@@ -403,6 +433,7 @@ BG defaults to `bg-main`."
 (defun elline--build-center (default-bg)
   (elline--join-left (list (elline--major-mode)
                                 (elline--git)
+                                (elline--project)
                                 (elline--process))
                           default-bg))
 
@@ -431,6 +462,13 @@ BG defaults to `bg-main`."
           center
           `(:propertize " " display ((space :align-to (- right right-fringe right-margin ,right-width))))
           right)))
+
+(defun elline-toggle-project ()
+  "Toggle display of the project name in the mode-line."
+  (interactive)
+  (setq elline-show-project (not elline-show-project))
+  (message "Modeline project: %s" (if elline-show-project "on" "off"))
+  (force-mode-line-update t))
 
 (defun elline--apply-height ()
   "Apply `elline-height` to modeline faces."
@@ -497,6 +535,7 @@ BG defaults to `bg-main`."
 (global-set-key (kbd "C-c m t") #'elline-toggle-time)
 (global-set-key (kbd "C-c m s") #'elline-cycle-separators)
 (global-set-key (kbd "C-c m b") #'elline-toggle-style)
+(global-set-key (kbd "C-c m p") #'elline-toggle-project)
 
 (provide 'elline)
 ;;; elline.el ends here
