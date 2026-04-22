@@ -43,8 +43,8 @@
   :type 'boolean
   :group 'elline)
 
-(defcustom elline-height 110
-  "Height of the modeline (100 is default font size)."
+(defcustom elline-height 120
+  "Height of the modeline (120 is default font size)."
   :type 'integer
   :group 'elline)
 
@@ -174,7 +174,7 @@ BG defaults to `bg-main`."
             (setq res (concat res (propertize sep-glyph 'face `(:foreground ,prev-bg :background ,cur-bg)))))
           (setq res (concat res seg))
           (setq prev-bg cur-bg))))
-    ;; cap off the right edge of the left group
+    ;; cap off the right edge of the left group with a separator
     (when (and sep-glyph (not (string= prev-bg default-bg)))
       (setq res (concat res (propertize sep-glyph 'face `(:foreground ,prev-bg :background ,default-bg)))))
     res))
@@ -227,9 +227,18 @@ BG defaults to `bg-main`."
                        (elline--blend (elline--color 'bg-main) "#000000" 0.10)))
            (fg       (if blocks-p
                          (if active (elline--color 'bg-main) (elline--color 'fg-dim))
-                       state-c)))
-      (propertize (concat " " icon " ")
-                  'face `(:background ,bg :foreground ,fg :weight bold)))))
+                       state-c))
+           ;; centering box
+           (box-width 4)
+           (content (string-trim (format " %s " icon)))  ; ensure single icon with minimal padding
+           (len (length content))
+           (pad-left (floor (/ (- box-width len) 2)))
+           (pad-right (- box-width len pad-left))
+           (pad-left (max 0 pad-left))
+           (pad-right (max 0 pad-right))
+           (boxed (concat (make-string pad-left ?\s) content (make-string pad-right ?\s))))
+      (propertize boxed 'face `(:background ,bg :foreground ,fg :weight bold)))))
+
 
 (defun elline--winum ()
   (when (and (fboundp 'winum-get-number) (> (window-width) 20))
