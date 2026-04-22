@@ -192,8 +192,8 @@ BG defaults to `bg-main`."
     ;; cap off the right edge of the left group
     (when (and sep-glyph (not (string= prev-bg default-bg)))
       (setq res (concat res (propertize sep-glyph
-                                       'face `(:foreground ,prev-bg :background ,default-bg :height 0.95)
-                                       'display `((raise . ,elline-separator-raise))))))
+                                        'face `(:foreground ,prev-bg :background ,default-bg :height 0.95)
+                                        'display `((raise . ,elline-separator-raise))))))
     res))
 
 (defun elline--join-right (segs default-bg)
@@ -209,8 +209,8 @@ BG defaults to `bg-main`."
         (let ((right-bg (elline--get-bg seg default-bg)))
           (when (and sep-glyph (not (string= left-bg right-bg)))
             (setq res (concat res (propertize sep-glyph
-                                             'face `(:foreground ,right-bg :background ,left-bg :height 0.95)
-                                             'display `((raise . ,elline-separator-raise))))))
+                                              'face `(:foreground ,right-bg :background ,left-bg :height 0.95)
+                                              'display `((raise . ,elline-separator-raise))))))
           (setq res (concat res seg))
           (setq left-bg right-bg))))
     res))
@@ -264,8 +264,8 @@ BG defaults to `bg-main`."
     (let ((n (winum-get-number)))
       ;; bg-alt lets the accent icon pop without being overwhelming
       (when n (elline--seg (number-to-string n)
-                                (elline--color 'bg-alt)
-                                (elline--color 'accent))))))
+                           (elline--color 'bg-alt)
+                           (elline--color 'accent))))))
 
 (defun elline--status ()
   (let* ((ro     buffer-read-only)
@@ -287,7 +287,7 @@ BG defaults to `bg-main`."
          (icon   (elline--icon 'file nil "")))
     ;; bg-alt2 creates a visible section boundary next to status
     (elline--seg (concat (when remote (concat (elline--icon 'oct "globe" "🌐") " ")) name)
-                      (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
+                 (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
 
 (defun elline--project ()
   "Show the current project name from project.el or tab-bar."
@@ -322,21 +322,21 @@ BG defaults to `bg-main`."
                (dirty  (and buffer-file-name (fboundp 'vc-git-state) (not (eq 'up-to-date (vc-git-state buffer-file-name)))))
                (icon   (elline--icon 'oct "git_branch" "")))
           (elline--seg branch (elline--color 'bg-alt)
-                            ;; Full fg for clean branches; warning pops for dirty
-                            (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))))
+                       ;; Full fg for clean branches; warning pops for dirty
+                       (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))))
 
 (defun elline--macro ()
   (when defining-kbd-macro
     ;; Theme-adaptive foreground instead of harsh #ffffff
     (elline--seg "REC" (elline--color 'error)
-                      (elline--color 'bg-main)
-                      (elline--icon 'fa "circle" "●") t)))
+                 (elline--color 'bg-main)
+                 (elline--icon 'fa "circle" "●") t)))
 
 (defun elline--selection ()
   (when (and (use-region-p) (> (window-width) 80))
     ;; Use fg here instead of accent so it's readable on bg-alt2
     (elline--seg (format "%dL %dC" (count-lines (region-beginning) (region-end)) (abs (- (region-end) (region-beginning))))
-                      (elline--color 'bg-alt) (elline--color 'fg))))
+                 (elline--color 'bg-alt) (elline--color 'fg))))
 
 (defun elline--major-mode ()
   (let* ((name (capitalize (string-trim (symbol-name major-mode) nil "-mode$")))
@@ -353,7 +353,7 @@ BG defaults to `bg-main`."
   (when (> (window-width) 60)
     (when (or (bound-and-true-p lsp-mode) (bound-and-true-p eglot--managed-mode))
       (elline--seg "LSP" (elline--color 'bg-alt) (elline--color 'success)
-                        (elline--icon 'codicon "symbol_method" "λ")))))
+                   (elline--icon 'codicon "symbol_method" "λ")))))
 
 (defun elline--flycheck ()
   (when (and (bound-and-true-p flycheck-mode) (fboundp 'flycheck-count-errors) (> (window-width) 50))
@@ -361,11 +361,11 @@ BG defaults to `bg-main`."
            (e (or (alist-get 'error counts) 0))
            (w (or (alist-get 'warning counts) 0))
            (i (or (alist-get 'info counts) 0))
-           (bg (elline--color 'bg-main)))
+           (bg (elline--color 'bg-alt))) ;; bg-alt to continue the block
       (concat
        (propertize (format " %s %d" (elline--icon 'oct "x_circle" "✖") e) 'face `(:background ,bg :foreground ,(if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) :weight bold))
        (propertize (format " %s %d" (elline--icon 'oct "alert" "⚠") w)    'face `(:background ,bg :foreground ,(if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d" (elline--icon 'oct "info" "ℹ") i)     'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
+       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)    'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
 
 (defun elline--flymake-count (type)
   (let ((count 0))
@@ -379,11 +379,11 @@ BG defaults to `bg-main`."
     (let* ((e (elline--flymake-count :error))
            (w (elline--flymake-count :warning))
            (i (elline--flymake-count :note))
-           (bg (elline--color 'bg-main)))
+           (bg (elline--color 'bg-alt))) ;; Changed to bg-alt to continue the block
       (concat
        (propertize (format " %s %d" (elline--icon 'oct "x_circle" "✖") e) 'face `(:background ,bg :foreground ,(if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) :weight bold))
        (propertize (format " %s %d" (elline--icon 'oct "alert" "⚠") w)    'face `(:background ,bg :foreground ,(if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)     'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
+       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)    'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
 
 (defun elline--encoding ()
   (when (and buffer-file-coding-system (> (window-width) 40))
@@ -405,7 +405,7 @@ BG defaults to `bg-main`."
   (when (> (window-width) 60)
     (let ((size (buffer-size)))
       (elline--seg (cond ((> size 1048576) (format "%.1fM" (/ size 1048576.0))) ((> size 1024) (format "%.1fk" (/ size 1024.0))) (t (format "%dB" size)))
-                        (elline--color 'bg-alt) (elline--color 'fg-dim)))))
+                   (elline--color 'bg-alt) (elline--color 'fg-dim)))))
 
 (defun elline--time ()
   (when (and elline-show-time (> (window-width) 70))
@@ -418,35 +418,35 @@ BG defaults to `bg-main`."
   (when (and (elline--active-p) (eq elline-theme-style 'flat))
     (propertize "▌"
                 'face `(:foreground ,(elline--color 'accent)
-                        :background ,(elline--color 'bg-main)))))
+                                    :background ,(elline--color 'bg-main)))))
 
 (defun elline--build-left (default-bg)
   (elline--join-left (list (elline--active-bar)
-                                (elline--evil)
-                                (elline--winum)
-                                (elline--status)
-                                (elline--buffer-name)
-                                (elline--macro)
-                                (elline--selection))
-                          default-bg))
+                           (elline--evil)
+                           (elline--winum)
+                           (elline--status)
+                           (elline--buffer-name)
+                           (elline--macro)
+                           (elline--selection))
+                     default-bg))
 
 (defun elline--build-center (default-bg)
   (elline--join-left (list (elline--major-mode)
-                                (elline--git)
-                                (elline--project)
-                                (elline--process))
-                          default-bg))
+                           (elline--git)
+                           (elline--project)
+                           (elline--process))
+                     default-bg))
 
 (defun elline--build-right (default-bg)
   (elline--join-right (list (elline--lsp)
-                                 (elline--flycheck)
-                                 (elline--flymake)
-                                 (elline--encoding)
-                                 (elline--position)
-                                 (elline--percentage)
-                                 (elline--buffer-size)
-                                 (elline--time))
-                           default-bg))
+                            (elline--flycheck)
+                            (elline--flymake)
+                            (elline--encoding)
+                            (elline--position)
+                            (elline--percentage)
+                            (elline--buffer-size)
+                            (elline--time))
+                      default-bg))
 
 ;; Main setup
 ;; -------------------------------------------------------------------------
