@@ -1,8 +1,40 @@
+** elline.el
+/An elegant status line without extra fluff/
+
+-----
+
+**Flat Style**
+
+#+ATTR_ORG: :width 800
+[[./screenshots/flat.png]]
+
+**Blocks Style: None**
+
+#+ATTR_ORG: :width 800
+[[./screenshots/blocks-none.png]]
+
+**Blocks Style: Arrow**
+
+#+ATTR_ORG: :width 800
+[[./screenshots/blocks-arrow.png]]
+
+**Blocks Style: Curve**
+
+#+ATTR_ORG: :width 800
+[[./screenshots/blocks-curve.png]]
+
+**Blocks Style: Slant**
+
+#+ATTR_ORG: :width 800
+[[./screenshots/blocks-slant.png]]
+
+-----
+
 * Introduction
 
-  elline.el is a lightweight mode line for Emacs, designed to provide the same visual appeal as doom-modeline while remaining minimal and unobtrusive. It is built to be modular, efficient, and visually consistent across all themes and buffer states.
+  =elline.el= is a small & lightweight mode line for Emacs, designed to provide the same visual appeal as doom-modeline while remaining minimal and unobtrusive. It is built to be modular, efficient, and visually consistent across all themes and buffer states.
 
-* Features
+** Features
 
   - *Theme-adaptive colors*: Automatically blends with your Emacs theme for a seamless look.
   - *Flymake/Flycheck diagnostics*: Real-time error and warning counts with visual indicators.
@@ -18,7 +50,7 @@
 This is currently not on Melpa, either use =package-vc-install= or do:
 
      #+BEGIN_SRC emacs-lisp
-     (add-to-list 'load-path "/path/to/elline.el")
+     (add-to-list 'load-path "/path/to/elline")
      (require 'elline)
      (elline-mode 1)
      #+END_SRC
@@ -43,33 +75,6 @@ This is currently not on Melpa, either use =package-vc-install= or do:
   A more structured mode line with visible segment boundaries. Choose from the following separator styles:
 
   - =none=: No visible separators, just clear segment boundaries.
-  - =arrow=: Uses arrow glyphs (e.g., , )
-  - =curve=: Uses curved glyphs (e.g., , )
-  - =slant=: Uses slanted glyphs (e.g., , )
-
-* Screenshots
-
-# **Flat Style**
-
-# #+ATTR_ORG: :width 800
-# [[./screenshots/flat.png]]
-
-# **Blocks Style: None**
-
-# #+ATTR_ORG: :width 800
-# [[./screenshots/blocks-none.png]]
-
-# **Blocks Style: Arrow**
-
-# #+ATTR_ORG: :width 800
-# [[./screenshots/blocks-arrow.png]]
-
-# **Blocks Style: Curve**
-
-# #+ATTR_ORG: :width 800
-# [[./screenshots/blocks-curve.png]]
-
-# **Blocks Style: Slant**
-
-# #+ATTR_ORG: :width 800
-# [[./screenshots/blocks-slant.png]]
+  - =arrow=: Uses arrow glyphs
+  - =curve=: Uses curved glyphs
+  - =slant=: Uses slanted glyphs
