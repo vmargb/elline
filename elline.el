@@ -24,7 +24,7 @@
 
 (defgroup elline nil
   "Beautiful, adaptive mode-line."
-  :group 'mode-line)
+  :group 'elline)
 
 (defcustom elline-icon-provider 'nerd-icons
   "Icon backend: `nerd-icons', `all-the-icons', or `none'."
@@ -67,6 +67,12 @@
     (curve . ("" . ""))
     (slant . ("" . "")))
   "Alist mapping separator styles to their (left . right) glyphs.")
+
+(defcustom elline-separator-raise -0.1
+  "Vertical adjustment for separator glyphs.
+Negative values lower the glyph, positive values raise it."
+  :type 'float
+  :group 'elline)
 
 ;; Theme-adaptive colour handling
 ;; -------------------------------------------------------------------------
@@ -171,12 +177,18 @@ BG defaults to `bg-main`."
       (when (and seg (not (string-empty-p seg)))
         (let ((cur-bg (elline--get-bg seg default-bg)))
           (when (and sep-glyph (not (string= prev-bg cur-bg)) (not (string= res "")))
-            (setq res (concat res (propertize sep-glyph 'face `(:foreground ,prev-bg :background ,cur-bg)))))
+            ;; Use a wrapper space + raise to bypass mode-line display stripping
+            (let ((sep (propertize sep-glyph
+                                   'face `(:foreground ,prev-bg :background ,cur-bg :height 0.95)
+                                   'display `((raise . ,elline-separator-raise)))))
+              (setq res (concat res sep))))
           (setq res (concat res seg))
           (setq prev-bg cur-bg))))
-    ;; cap off the right edge of the left group with a separator
+    ;; cap off the right edge of the left group
     (when (and sep-glyph (not (string= prev-bg default-bg)))
-      (setq res (concat res (propertize sep-glyph 'face `(:foreground ,prev-bg :background ,default-bg)))))
+      (setq res (concat res (propertize sep-glyph
+                                       'face `(:foreground ,prev-bg :background ,default-bg :height 0.95)
+                                       'display `((raise . ,elline-separator-raise))))))
     res))
 
 (defun elline--join-right (segs default-bg)
@@ -191,7 +203,9 @@ BG defaults to `bg-main`."
       (when (and seg (not (string-empty-p seg)))
         (let ((right-bg (elline--get-bg seg default-bg)))
           (when (and sep-glyph (not (string= left-bg right-bg)))
-            (setq res (concat res (propertize sep-glyph 'face `(:foreground ,right-bg :background ,left-bg)))))
+            (setq res (concat res (propertize sep-glyph
+                                             'face `(:foreground ,right-bg :background ,left-bg :height 0.95)
+                                             'display `((raise . ,elline-separator-raise))))))
           (setq res (concat res seg))
           (setq left-bg right-bg))))
     res))
