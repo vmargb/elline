@@ -438,6 +438,40 @@ Adds the repo icon only when inside a tab."
   (when (and elline-show-time (> (window-width) 70))
     (elline--seg (format-time-string "%H:%M") (elline--color 'bg-alt2) (elline--color 'accent) (elline--icon 'oct "clock" "⏱"))))
 
+;; Extensibility API
+;; -------------------------------------------------------------------------
+
+(defvar elline-left-segments
+  '(elline--active-bar elline--evil elline--winum elline--status elline--buffer-name elline--macro elline--selection elline--major-mode elline--git elline--project elline--process)
+  "List of functions to render on the left side of the modeline.")
+
+(defvar elline-right-segments
+  '(elline--lsp elline--flycheck elline--flymake elline--encoding elline--position elline--percentage elline--buffer-size elline--time)
+  "List of functions to render on the right side of the modeline.")
+
+(defmacro elline-def-segment (name bg fg &rest body)
+  "Define a new modeline segment named NAME.
+BODY should return a string. BG and FG dictate the theme colors (e.g., 'bg-alt, 'accent).
+This automatically applies the correct blocks and separators."
+  `(defun ,name ()
+     (let ((str (progn ,@body)))
+       (when (and str (not (string-blank-p str)))
+         (elline--seg str (elline--color ,bg) (elline--color ,fg))))))
+
+(defun elline-add-segment (section segment &optional after-segment)
+  "Add SEGMENT to SECTION ('left or 'right).
+If AFTER-SEGMENT is provided, injects it immediately after that segment."
+  (let* ((list-var (if (eq section 'left) 'elline-left-segments 'elline-right-segments))
+         (list-val (symbol-value list-var)))
+    (if after-segment
+        (let ((pos (cl-position after-segment list-val)))
+          (if pos
+              (set list-var (append (cl-subseq list-val 0 (1+ pos))
+                                    (list segment)
+                                    (cl-subseq list-val (1+ pos))))
+            (add-to-list list-var segment t))) ; Fallback to append if 'after' not found
+      (add-to-list list-var segment t)))) ; Default append
+
 ;; Zones
 ;; -------------------------------------------------------------------------
 
@@ -448,36 +482,14 @@ Adds the repo icon only when inside a tab."
                                     :background ,(elline--color 'bg-main)))))
 
 (defun elline--build-left (default-bg w)
-  (let ((responsive-p (not elline-responsive)))
-    (elline--join-left
-     (append
-      (list (elline--active-bar)
-            (elline--evil)
-            (elline--winum)
-            (elline--status)
-            (elline--buffer-name)
-            (elline--macro)
-            (elline--selection))
-      (when (or responsive-p (> w 50))
-        (list (elline--major-mode)
-              (elline--git)
-              (elline--project)
-              (elline--process))))
-     default-bg)))
+  (elline--join-left
+   (delq nil (mapcar (lambda (f) (when (fboundp f) (funcall f))) elline-left-segments))
+   default-bg))
 
 (defun elline--build-right (default-bg w)
-  (let ((responsive-p (not elline-responsive)))
-    (elline--join-right
-     (when (or responsive-p (> w 30))
-       (list (elline--lsp)
-             (elline--flycheck)
-             (elline--flymake)
-             (elline--encoding)
-             (elline--position)
-             (elline--percentage)
-             (elline--buffer-size)
-             (elline--time)))
-     default-bg)))
+  (elline--join-right
+   (delq nil (mapcar (lambda (f) (when (fboundp f) (funcall f))) elline-right-segments))
+   default-bg))
 
 ;; Main setup
 ;; -------------------------------------------------------------------------
