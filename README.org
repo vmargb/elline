@@ -87,7 +87,7 @@ This package is currently not on =Melpa=, for now use:
 #+END_SRC
 
 ** Extensibility
-You can insert your own segment either from emacs or your own package:
+You can insert your own segment either from emacs or from your own package:
 1. define your custom segment with =elline-def-segment=
 2. insert the segment with =elline-add-segment=
 

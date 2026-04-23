@@ -287,11 +287,23 @@ BG defaults to `bg-main`."
     (elline--seg (concat (when remote (concat (elline--icon 'oct "globe" "🌐") " ")) name)
                  (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
 
+
+;; Project/Tab awareness
+;; ---------------------
+
+(defun elline--frame-has-user-tabs-p ()
+  "Return non-nil when the current frame has more than the built-in default tab."
+  (let ((tabs (frame-parameter nil 'tabs)))
+    (> (length (if (listp tabs) tabs nil)) 1)))
+
 (defun elline--project ()
-  "Show the current project name from project.el or tab-bar."
+  "Show the current project name.
+Adds the repo icon only when inside a tab."
   (when (and elline-show-project (> (window-width) 40))
-    (let ((name nil)
-          (icon (elline--icon 'oct "repo" "📁")))
+    (let* ((name nil)
+           ;; only fetch the icon if we are actually in a multi-tab workspace
+           (icon (when (elline--frame-has-user-tabs-p)
+                   (elline--icon 'oct "repo" "📁"))))
       ;; prefer project.el
       (when (fboundp 'project-current)
         (let ((proj (ignore-errors (project-current))))
@@ -300,17 +312,19 @@ BG defaults to `bg-main`."
                            (project-name proj)
                          (file-name-nondirectory
                           (directory-file-name (project-root proj))))))))
-      ;; fallback to tab-bar tab name (useful for tabspaces like projects)
+      
+      ;; fallback to tab-bar tab name
       (unless name
-        (when (and (bound-and-true-p tab-bar-mode)
-                   (fboundp 'tab-bar-tab-name-current))
-          (let ((tab-name (tab-bar-tab-name-current)))
-            ;; only use the tab name if it differs from the buffer name
+        (when (fboundp 'tab-bar-tab-name-current)
+          (let ((tab-name (ignore-errors (tab-bar-tab-name-current))))
             (when (and tab-name (not (string= tab-name (buffer-name))))
               (setq name tab-name)))))
+      
       (when name
-        (elline--seg name (elline--color 'bg-alt) (elline--color 'accent) icon)))))
-
+        (elline--seg name
+                     (elline--color 'bg-alt)
+                     (elline--color 'accent)
+                     icon)))))
 
 (defun elline--git ()
   (when (and vc-mode (stringp vc-mode))
