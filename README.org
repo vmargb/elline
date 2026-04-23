@@ -38,12 +38,12 @@
 
 * Features
 
-  - *Theme-adaptive colors* :: Blends foreground/background with your active theme using dynamic color blending.
-  - *Diagnostic indicators* :: Flymake/Flycheck error, warning, and info counts with severity-aware coloring.
+  - *Theme-adaptive colors* :: Blends foreground/background with your active theme
+  - *Diagnostic indicators* :: Flymake/Flycheck error, warning, and info counts
   - *Evil mode integration* :: Visual state indicator with icon support (normal, insert, visual, etc.).
-  - *Modular zones* :: Left, center, and right segments composed via joiner functions for seamless customization.
+  - *Modular zones* :: Left and right segments composed via joiner functions
   - *Responsive layout* :: Non-essential segments hide automatically in narrow windows.
-  - *Separator styles* :: Choose none, arrow, curve, or slant glyphs for block-style mode lines.
+  - *Separator styles* :: Choose none, arrow, curve, or slant glyphs for block-style
   - *Height control* :: Adjust mode line height via =elline-height= (default: 120, i.e., 1.2× font size).
   - *Optional clock* :: Toggle HH:MM display at the far right.
   - *Inactive window dimming* :: Clear visual distinction between active and inactive buffers.
@@ -86,12 +86,47 @@ This package is currently not on =Melpa=, for now use:
       elline-icon-provider 'nerd-icons)    ; Icon backend
 #+END_SRC
 
-  *Key variables*:
-  - =elline-height= :: Integer, mode line height in 1/10 pt units.
-  - =elline-theme-style= :: =flat= or =blocks=.
-  - =elline-separator-style= :: =none=, =arrow=, =curve=, or =slant=.
-  - =elline-icon-provider= :: =nerd-icons=, =all-the-icons=, or =none=.
-  - =elline-separator-raise= :: Float, vertical adjustment for separator glyphs (negative lowers).
+** Extensibility
+You can insert your own segment either from emacs or your own package:
+1. define your custom segment with =elline-def-segment=
+2. insert the segment with =elline-add-segment=
+
+*Example:* using [[https://github.com/vmargb/arrow.el][arrow.el]]
+#+begin_src elisp
+(with-eval-after-load 'elline
+  ;; custom segment: `elline-arrow-project' is assigned to the output string `arrow-project-modeline-string' if it exists
+  (elline-def-segment elline-arrow-project 'bg-alt 'accent
+    (when (fboundp 'arrow-project-modeline-string)
+      (arrow-project-modeline-string)))
+
+  ;; Let's say you want it on the 'left section, right after `elline--project' (optional)
+  (elline-add-segment 'left 'elline-arrow-project 'elline--project))
+#+end_src
+
+The last argument in =elline-add-segment= is optional, if you leave it empty, the segment is appended to the end instead. But if you want to insert it after a particular segment, here are the possible options:
+
+*Left*:
+- =(elline--active-bar)=
+- =(elline--evil)=
+- =(elline--winum)=
+- =(elline--status)=
+- =(elline--buffer-name)=
+- =(elline--macro)=
+- =(elline--selection)=
+- =(elline--major-mode)=
+- =(elline--git)=
+- =(elline--project)=
+- =(elline--process)=
+
+*Right:*
+- =(elline--lsp)=
+- =(elline--flycheck)=
+- =(elline--flymake)=
+- =(elline--encoding)=
+- =(elline--position)=
+- =(elline--percentage)=
+- =(elline--buffer-size)=
+- =(elline--time)=
 
 * Troubleshooting
 
