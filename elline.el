@@ -95,9 +95,26 @@ Negative values lower the glyph, positive values raise it."
                         (color-name-to-rgb c2)))
     (error c1)))
 
+(defvar elline--cached-bg nil)
+(defvar elline--cached-light-theme nil)
+
+(defun elline--light-theme-p ()
+  "Return non-nil if the mode-line background is light."
+  (let ((bg (or (face-attribute 'mode-line :background nil 'default)
+                "#1e1e2e")))
+    (unless (equal bg elline--cached-bg)
+      (setq elline--cached-bg bg)
+      (setq elline--cached-light-theme
+            (condition-case nil
+                (let ((rgb (color-name-to-rgb bg)))
+                  (and rgb (> (apply #'+ rgb) 1.5)))
+              (error nil))))
+    elline--cached-light-theme))
+
 (defun elline--color (key)
   "Return a theme-adaptive colour for KEY."
   (let* ((active   (elline--active-p))
+         (light    (elline--light-theme-p))
          (ml-face  (if active 'mode-line 'mode-line-inactive))
          (bg       (or (face-attribute ml-face :background nil 'default) "#1e1e2e"))
          (fg       (or (face-attribute ml-face :foreground nil 'default) "#cdd6f4"))
@@ -108,18 +125,18 @@ Negative values lower the glyph, positive values raise it."
          (blocks-p (eq elline-theme-style 'blocks)))
     (pcase key
       ('bg-main bg)
-      ;; accent-tinted blocks to avoid the boring look
-      ('bg-alt  (if blocks-p (elline--blend bg accent (if active 0.12 0.06)) bg))
-      ('bg-alt2 (if blocks-p (elline--blend bg accent (if active 0.25 0.12)) bg))
-      ('bg-neutral (if blocks-p (elline--blend bg fg (if active 0.10 0.05)) bg))
+      ;; stronger tints on light themes so segments actually separate
+      ('bg-alt  (if blocks-p (elline--blend bg accent (if active (if light 0.22 0.12) (if light 0.12 0.06))) bg))
+      ('bg-alt2 (if blocks-p (elline--blend bg accent (if active (if light 0.40 0.25) (if light 0.22 0.12))) bg))
+      ('bg-neutral (if blocks-p (elline--blend bg fg (if active (if light 0.18 0.10) (if light 0.10 0.05))) bg))
       ('fg      fg)
       ('accent  accent)
       ('warning warning)
       ('error   error-c)
       ('success success)
-      ;; fg-dim is now readable but still de-emphasised
-      ('fg-dim  (elline--blend fg bg (if active 0.55 0.65)))
-      ('fg-inactive (elline--blend fg bg 0.60))
+      ;; on light themes blend LESS so dimmed text stays darker & readable
+      ('fg-dim  (elline--blend fg bg (if active (if light 0.35 0.55) (if light 0.45 0.65))))
+      ('fg-inactive (elline--blend fg bg (if light 0.40 0.60)))
       (_ bg))))
 
 ;; Icon selection
