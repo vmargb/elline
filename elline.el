@@ -108,7 +108,7 @@ Negative values lower the glyph, positive values raise it."
          (blocks-p (eq elline-theme-style 'blocks)))
     (pcase key
       ('bg-main bg)
-      ;; accent-tinted blocks avoid the "muddy gray" boring look
+      ;; accent-tinted blocks to avoid the boring look
       ('bg-alt  (if blocks-p (elline--blend bg accent (if active 0.12 0.06)) bg))
       ('bg-alt2 (if blocks-p (elline--blend bg accent (if active 0.25 0.12)) bg))
       ('bg-neutral (if blocks-p (elline--blend bg fg (if active 0.10 0.05)) bg))
@@ -277,7 +277,6 @@ BG defaults to `bg-main`."
                        (t      (elline--icon 'oct "dot"         "○"))))
          (fg     (cond (ro     (elline--color 'error))
                        (mod    (elline--color 'warning))
-                       ;; Use full fg so it's readable on bg-alt blocks
                        (t      (elline--color 'fg)))))
     (elline--seg "" (elline--color 'bg-alt) fg icon)))
 
@@ -285,7 +284,6 @@ BG defaults to `bg-main`."
   (let* ((name   (buffer-name))
          (remote (file-remote-p default-directory))
          (icon   (elline--icon 'file nil "")))
-    ;; bg-alt2 creates a visible section boundary next to status
     (elline--seg (concat (when remote (concat (elline--icon 'oct "globe" "🌐") " ")) name)
                  (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
 
@@ -368,22 +366,37 @@ BG defaults to `bg-main`."
        (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)    'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
 
 (defun elline--flymake-count (type)
+  "Robustly count Flymake diagnostics matching TYPE ('error, 'warning, 'note)."
   (let ((count 0))
-    (when (and (bound-and-true-p flymake-mode) (boundp 'flymake--state))
-      (maphash (lambda (_ state) (when (flymake--state-p state)
-                                   (setq count (+ count (cl-count-if (lambda (d) (eq (flymake-diagnostic-type d) type)) (flymake--state-diags state))))))
-               flymake--state)) count))
+    (dolist (d (flymake-diagnostics))
+      (let* ((diag-type (flymake-diagnostic-type d))
+             ;; backends like Eglot use derived types 'eglot-error
+             (category (or (get diag-type 'flymake-category) diag-type)))
+        (when (or (eq category (pcase type
+                                 ('error   'flymake-error)
+                                 ('warning 'flymake-warning)
+                                 ('note    'flymake-note)))
+                  ;; fallback to older backend that use raw keywords
+                  (eq diag-type (pcase type
+                                  ('error   :error)
+                                  ('warning :warning)
+                                  ('note    :note))))
+          (cl-incf count))))
+    count))
 
 (defun elline--flymake ()
   (when (and (bound-and-true-p flymake-mode) (> (window-width) 50))
-    (let* ((e (elline--flymake-count :error))
-           (w (elline--flymake-count :warning))
-           (i (elline--flymake-count :note))
-           (bg (elline--color 'bg-alt))) ;; Changed to bg-alt to continue the block
+    (let* ((e (elline--flymake-count 'error))
+           (w (elline--flymake-count 'warning))
+           (i (elline--flymake-count 'note))
+           (bg (elline--color 'bg-alt)))
       (concat
-       (propertize (format " %s %d" (elline--icon 'oct "x_circle" "✖") e) 'face `(:background ,bg :foreground ,(if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d" (elline--icon 'oct "alert" "⚠") w)    'face `(:background ,bg :foreground ,(if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)    'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
+       (propertize (format " %s %d" (elline--icon 'oct "x_circle" "✖") e)
+                   'face `(:background ,bg :foreground ,(if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) :weight bold))
+       (propertize (format " %s %d" (elline--icon 'oct "alert" "⚠") w)
+                   'face `(:background ,bg :foreground ,(if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) :weight bold))
+       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)
+                   'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
 
 (defun elline--encoding ()
   (when (and buffer-file-coding-system (> (window-width) 40))
@@ -420,33 +433,37 @@ BG defaults to `bg-main`."
                 'face `(:foreground ,(elline--color 'accent)
                                     :background ,(elline--color 'bg-main)))))
 
-(defun elline--build-left (default-bg)
-  (elline--join-left (list (elline--active-bar)
-                           (elline--evil)
-                           (elline--winum)
-                           (elline--status)
-                           (elline--buffer-name)
-                           (elline--macro)
-                           (elline--selection))
-                     default-bg))
+(defun elline--build-left (default-bg w)
+  (let ((responsive-p (not elline-responsive)))
+    (elline--join-left
+     (append
+      (list (elline--active-bar)
+            (elline--evil)
+            (elline--winum)
+            (elline--status)
+            (elline--buffer-name)
+            (elline--macro)
+            (elline--selection))
+      (when (or responsive-p (> w 50))
+        (list (elline--major-mode)
+              (elline--git)
+              (elline--project)
+              (elline--process))))
+     default-bg)))
 
-(defun elline--build-center (default-bg)
-  (elline--join-left (list (elline--major-mode)
-                           (elline--git)
-                           (elline--project)
-                           (elline--process))
-                     default-bg))
-
-(defun elline--build-right (default-bg)
-  (elline--join-right (list (elline--lsp)
-                            (elline--flycheck)
-                            (elline--flymake)
-                            (elline--encoding)
-                            (elline--position)
-                            (elline--percentage)
-                            (elline--buffer-size)
-                            (elline--time))
-                      default-bg))
+(defun elline--build-right (default-bg w)
+  (let ((responsive-p (not elline-responsive)))
+    (elline--join-right
+     (when (or responsive-p (> w 30))
+       (list (elline--lsp)
+             (elline--flycheck)
+             (elline--flymake)
+             (elline--encoding)
+             (elline--position)
+             (elline--percentage)
+             (elline--buffer-size)
+             (elline--time)))
+     default-bg)))
 
 ;; Main setup
 ;; -------------------------------------------------------------------------
@@ -454,12 +471,10 @@ BG defaults to `bg-main`."
 (defun elline--build ()
   (let* ((w            (window-width))
          (default-bg   (elline--color 'bg-main))
-         (left         (elline--build-left default-bg))
-         (center       (when (or (not elline-responsive) (> w 50)) (elline--build-center default-bg)))
-         (right        (when (or (not elline-responsive) (> w 30)) (elline--build-right default-bg)))
+         (left         (elline--build-left default-bg w))
+         (right        (elline--build-right default-bg w))
          (right-width  (if right (string-width (format-mode-line right)) 0)))
     (list left
-          center
           `(:propertize " " display ((space :align-to (- right right-fringe right-margin ,right-width))))
           right)))
 
