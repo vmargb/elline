@@ -68,7 +68,7 @@
     (slant . ("" . "")))
   "Alist mapping separator styles to their (left . right) glyphs.")
 
-(defcustom elline-separator-raise -0.1
+(defcustom elline-separator-raise 0
   "Vertical adjustment for separator glyphs.
 Negative values lower the glyph, positive values raise it."
   :type 'float
@@ -99,7 +99,8 @@ Negative values lower the glyph, positive values raise it."
 (defvar elline--cached-light-theme nil)
 
 (defun elline--light-theme-p ()
-  "Return non-nil if the mode-line background is light."
+  "Return non-nil if the mode-line background is light.
+Caches the result against the current mode-line background colour."
   (let ((bg (or (face-attribute 'mode-line :background nil 'default)
                 "#1e1e2e")))
     (unless (equal bg elline--cached-bg)
@@ -516,7 +517,7 @@ If AFTER-SEGMENT is provided, injects it immediately after that segment."
          (default-bg   (elline--color 'bg-main))
          (left         (elline--build-left default-bg w))
          (right        (elline--build-right default-bg w))
-         (right-width  (if right (string-width (format-mode-line right)) 0)))
+         (right-width  (if right (string-width right) 0)))
     (list left
           `(:propertize " " display ((space :align-to (- right right-fringe right-margin ,right-width))))
           right)))
