@@ -309,6 +309,31 @@ BG defaults to `bg-main`."
 ;; Project/Tab awareness
 ;; ---------------------
 
+(defvar-local elline--cached-project-name nil
+  "Buffer-local cache for the current project name.")
+(defvar-local elline--cached-project-root nil
+  "Buffer-local cache for the current project root directory.")
+
+(defun elline--update-project-cache ()
+  "Update buffer-local project cache on hooks."
+  (let ((proj (ignore-errors (project-current))))
+    (if proj
+        (let ((root (project-root proj)))
+          (unless (equal root elline--cached-project-root)
+            (setq elline--cached-project-root root
+                  elline--cached-project-name
+                  (if (fboundp 'project-name)
+                      (project-name proj)
+                    (file-name-nondirectory (directory-file-name root))))))
+      (setq elline--cached-project-root nil
+            elline--cached-project-name nil))))
+
+;; update cache only when buffers/directories actually change
+(add-hook 'find-file-hook #'elline--update-project-cache)
+(add-hook 'dired-mode-hook #'elline--update-project-cache)
+(add-hook 'after-change-major-mode-hook #'elline--update-project-cache)
+(add-hook 'buffer-list-update-hook #'elline--update-project-cache)
+
 (defun elline--frame-has-user-tabs-p ()
   "Return non-nil when the current frame has more than the built-in default tab."
   (let ((tabs (frame-parameter nil 'tabs)))
@@ -316,44 +341,31 @@ BG defaults to `bg-main`."
 
 (defun elline--project ()
   "Show the current project name.
-Adds the repo icon only when inside a tab."
+Uses buffer-local cache to avoid constantly calling `project-current' during rendering."
   (when (and elline-show-project (> (window-width) 40))
-    (let* ((name nil)
-           ;; only fetch the icon if we are actually in a multi-tab workspace
-           (icon (when (elline--frame-has-user-tabs-p)
-                   (elline--icon 'oct "repo" "📁"))))
-      ;; prefer project.el
-      (when (fboundp 'project-current)
-        (let ((proj (ignore-errors (project-current))))
-          (when proj
-            (setq name (if (fboundp 'project-name)
-                           (project-name proj)
-                         (file-name-nondirectory
-                          (directory-file-name (project-root proj))))))))
-      
-      ;; fallback to tab-bar tab name
-      (unless name
-        (when (fboundp 'tab-bar-tab-name-current)
-          (let ((tab-name (ignore-errors (tab-bar-tab-name-current))))
-            (when (and tab-name (not (string= tab-name (buffer-name))))
-              (setq name tab-name)))))
-      
-      (when name
-        (elline--seg name
+    ;; fallback: update cache if somehow nil like newly created buffer
+    (unless elline--cached-project-root
+      (elline--update-project-cache))
+    
+    (when elline--cached-project-name
+      (let* ((icon (when (elline--frame-has-user-tabs-p)
+                     (elline--icon 'oct "repo" "📁"))))
+        (elline--seg elline--cached-project-name
                      (elline--color 'bg-alt)
                      (elline--color 'accent)
                      icon)))))
 
 (defun elline--git ()
-  (when (and vc-mode (stringp vc-mode))
-    (let ((backend (ignore-errors (vc-backend buffer-file-name))))
-      (when (eq backend 'Git)
-        (let* ((branch (replace-regexp-in-string "^ Git[:-]?\\s-*" "" vc-mode))
-               (dirty  (and buffer-file-name (fboundp 'vc-git-state) (not (eq 'up-to-date (vc-git-state buffer-file-name)))))
-               (icon   (elline--icon 'oct "git_branch" "")))
-          (elline--seg branch (elline--color 'bg-alt)
-                       ;; Full fg for clean branches; warning pops for dirty
-                       (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))))
+  "Check if `vc-mode' exists and is for Git first.
+Then extract the branch name since Emacs has already done the work."
+  (when (and vc-mode (stringp vc-mode) (string-match-p "^ Git" vc-mode))
+    (let* (
+           (branch (replace-regexp-in-string "^ Git[:-]?\\s-*" "" vc-mode))
+           ;; check for indicator (: or *) Emacs natively adds
+           (dirty  (string-match-p "^ Git[:*]" vc-mode))
+           (icon   (elline--icon 'oct "git_branch" "")))
+      (elline--seg branch (elline--color 'bg-alt)
+                   (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))
 
 (defun elline--macro ()
   (when defining-kbd-macro
