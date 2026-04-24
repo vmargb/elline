@@ -518,8 +518,8 @@ If AFTER-SEGMENT is provided, injects it immediately after that segment."
          (left         (elline--build-left default-bg w))
          (right        (elline--build-right default-bg w))
          (right-width  (if right (string-width right) 0)))
-    (list left
-          `(:propertize " " display ((space :align-to (- right right-fringe right-margin ,right-width))))
+    (list left ;; force right section to the far right
+          `(:propertize " " display ((space :align-to (- (+ right right-fringe right-margin) ,right-width))))
           right)))
 
 (defun elline-toggle-project ()
