@@ -59,13 +59,15 @@
   :type '(choice (const none)
                  (const arrow)
                  (const curve)
-                 (const slant))
+                 (const slant)
+                 (const slant-forward))
   :group 'elline)
 
 (defvar elline-separators
   '((arrow . ("" . ""))
     (curve . ("" . ""))
-    (slant . ("" . "")))
+    (slant . ("" . ""))
+    (slant-forward . ("" . "")))
   "Alist mapping separator styles to their (left . right) glyphs.")
 
 (defcustom elline-separator-raise 0
@@ -568,14 +570,15 @@ If AFTER-SEGMENT is provided, injects it immediately after that segment."
   (force-mode-line-update t))
 
 (defun elline-cycle-separators ()
-  "Cycle through separator styles. (Requires 'blocks' style active)."
+  "Cycle through separator styles.  (Requires 'blocks' style active)."
   (interactive)
   (setq elline-separator-style
         (pcase elline-separator-style
           ('none  'arrow)
           ('arrow 'curve)
           ('curve 'slant)
-          ('slant 'none)))
+          ('slant 'slant-forward)
+          ('slant-forward 'none)))
   (message "Modeline separators: %s" elline-separator-style)
   (unless (eq elline-theme-style 'blocks)
     (message "Note: Separators are only visible when style is set to 'blocks' (C-c m b)."))
