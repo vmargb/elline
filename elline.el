@@ -54,6 +54,12 @@
                  (const blocks))
   :group 'elline)
 
+(defcustom elline-separator-height 0.95
+  "Relative height for separators.
+Also acts as the pivot point for vertical alignment."
+  :type 'float
+  :group 'elline)
+
 (defcustom elline-separator-style 'none
   "Style of zone separators.  Only visible if `elline-theme-style' is `blocks'."
   :type '(choice (const none)
@@ -200,7 +206,7 @@ BG defaults to `bg-main`."
           (when (and sep-glyph (not (string= prev-bg cur-bg)) (not (string= res "")))
             ;; Use a wrapper space + raise to bypass mode-line display stripping
             (let ((sep (propertize sep-glyph
-                                   'face `(:foreground ,prev-bg :background ,cur-bg :height 0.95)
+                                   'face `(:foreground ,prev-bg :background ,cur-bg :height ,elline-separator-height)
                                    'display `((raise . ,elline-separator-raise)))))
               (setq res (concat res sep))))
           (setq res (concat res seg))
@@ -208,7 +214,7 @@ BG defaults to `bg-main`."
     ;; cap off the right edge of the left group
     (when (and sep-glyph (not (string= prev-bg default-bg)))
       (setq res (concat res (propertize sep-glyph
-                                        'face `(:foreground ,prev-bg :background ,default-bg :height 0.95)
+                                        'face `(:foreground ,prev-bg :background ,default-bg :height ,elline-separator-height)
                                         'display `((raise . ,elline-separator-raise))))))
     res))
 
@@ -225,7 +231,7 @@ BG defaults to `bg-main`."
         (let ((right-bg (elline--get-bg seg default-bg)))
           (when (and sep-glyph (not (string= left-bg right-bg)))
             (setq res (concat res (propertize sep-glyph
-                                              'face `(:foreground ,right-bg :background ,left-bg :height 0.95)
+                                              'face `(:foreground ,right-bg :background ,left-bg :height ,elline-separator-height)
                                               'display `((raise . ,elline-separator-raise))))))
           (setq res (concat res seg))
           (setq left-bg right-bg))))
