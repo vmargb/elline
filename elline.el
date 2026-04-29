@@ -43,7 +43,7 @@
   :type 'boolean
   :group 'elline)
 
-(defcustom elline-height 120
+(defcustom elline-height 160
   "Height of the modeline (120 is default font size)."
   :type 'integer
   :group 'elline)
@@ -111,21 +111,14 @@ Negative values lower the glyph, positive values raise it."
   (let* ((active   (elline--active-p))
          (blocks-p (eq elline-theme-style 'blocks))
          (ml-face  (if active 'mode-line 'mode-line-inactive))
-         
-         ;; fetch face attrivutes for current theme (very cheap)
          (bg       (or (face-attribute ml-face :background nil 'default) "#1e1e2e"))
          (fg       (or (face-attribute ml-face :foreground nil 'default) "#cdd6f4"))
          (accent   (or (face-attribute 'font-lock-keyword-face :foreground nil 'default) "#89b4fa"))
          (warning  (or (face-attribute 'warning  :foreground nil 'default) "#f9e2af"))
          (error-c  (or (face-attribute 'error    :foreground nil 'default) "#f38ba8"))
          (success  (or (face-attribute 'success  :foreground nil 'default) "#a6e3a1"))
-         ;; create a unique signature for the current editor state
          (cache-key (list key active blocks-p bg fg accent warning error-c success)))
-
-    ;; instantly return cached color if state hasn't changed
     (or (gethash cache-key elline--color-cache)
-        
-        ;; otherwise, redo the math and store it in the cache
         (let* ((rgb (color-name-to-rgb bg))
                (light (and rgb (> (apply #'+ rgb) 1.5)))
                (val (pcase key
@@ -148,8 +141,7 @@ Negative values lower the glyph, positive values raise it."
 ;; -------------------------------------------------------------------------
 
 (defun elline--icon (family name &optional fallback)
-  "For each icon-provider, return an icon glyph for FAMILY with NAME.
-Otherwise use FALLBACK."
+  "For each icon-provider, return an icon glyph for FAMILY with NAME."
   (let ((fallback (or fallback "")))
     (condition-case nil
         (pcase elline-icon-provider
@@ -176,11 +168,15 @@ Otherwise use FALLBACK."
 
 (defun elline--seg (text &optional bg fg icon bold)
   "Return a propertized mode-line segment with TEXT.
-BG defaults to `bg-main`."
+Uses an absolute integer height to prevent icon scaling from stretching the line."
   (let* ((bg (or bg (elline--color 'bg-main)))
          (fg (or fg (elline--color 'fg)))
-         (face `(:background ,bg :foreground ,fg ,@(when bold '(:weight bold)))))
-    (propertize (concat " " (when icon (concat icon " ")) text " ") 'face face)))
+         ;; absolute integer height stops Emacs from multiplying icon scale
+         (abs-height (floor (* elline-height elline-separator-height)))
+         (base-face `(:background ,bg :foreground ,fg :height ,abs-height ,@(when bold '(:weight bold))))
+         (res (concat " " (when icon (concat icon " ")) text " ")))
+    (add-face-text-property 0 (length res) base-face nil res)
+    res))
 
 (defun elline--get-bg (str default-bg)
   "Extract the DEFAULT-BG colour from the first character of STR."
@@ -204,14 +200,12 @@ BG defaults to `bg-main`."
       (when (and seg (not (string-empty-p seg)))
         (let ((cur-bg (elline--get-bg seg default-bg)))
           (when (and sep-glyph (not (string= prev-bg cur-bg)) (not (string= res "")))
-            ;; Use a wrapper space + raise to bypass mode-line display stripping
             (let ((sep (propertize sep-glyph
                                    'face `(:foreground ,prev-bg :background ,cur-bg :height ,elline-separator-height)
                                    'display `((raise . ,elline-separator-raise)))))
               (setq res (concat res sep))))
           (setq res (concat res seg))
           (setq prev-bg cur-bg))))
-    ;; cap off the right edge of the left group
     (when (and sep-glyph (not (string= prev-bg default-bg)))
       (setq res (concat res (propertize sep-glyph
                                         'face `(:foreground ,prev-bg :background ,default-bg :height ,elline-separator-height)
@@ -239,6 +233,7 @@ BG defaults to `bg-main`."
 
 ;; Segments
 ;; -------------------------------------------------------------------------
+
 (defun elline--evil ()
   "Evil mode state pill."
   (when (bound-and-true-p evil-mode)
@@ -263,31 +258,16 @@ BG defaults to `bg-main`."
                        ('motion   (elline--color 'accent))
                        ('emacs    (elline--color 'fg-dim))
                        (_         (elline--color 'fg))))
-           (bg       (if blocks-p
-                         (if active state-c (elline--color 'bg-alt2))
-                       (elline--blend (elline--color 'bg-main) "#000000" 0.10)))
-           (fg       (if blocks-p
-                         (if active (elline--color 'bg-main) (elline--color 'fg-dim))
-                       state-c))
-           ;; centering box
-           (box-width 4)
-           (content (string-trim (format " %s " icon)))  ; ensure single icon with minimal padding
-           (len (length content))
-           (pad-left (floor (/ (- box-width len) 2)))
-           (pad-right (- box-width len pad-left))
-           (pad-left (max 0 pad-left))
-           (pad-right (max 0 pad-right))
-           (boxed (concat (make-string pad-left ?\s) content (make-string pad-right ?\s))))
+           (bg       (if blocks-p (if active state-c (elline--color 'bg-alt2)) (elline--blend (elline--color 'bg-main) "#000000" 0.10)))
+           (fg       (if blocks-p (if active (elline--color 'bg-main) (elline--color 'fg-dim)) state-c))
+           (content  (string-trim (format " %s " icon)))
+           (boxed    (concat " " content "  ")))
       (propertize boxed 'face `(:background ,bg :foreground ,fg :weight bold)))))
-
 
 (defun elline--winum ()
   (when (and (fboundp 'winum-get-number) (> (window-width) 20))
     (let ((n (winum-get-number)))
-      ;; bg-alt lets the accent icon pop without being overwhelming
-      (when n (elline--seg (number-to-string n)
-                           (elline--color 'bg-alt)
-                           (elline--color 'accent))))))
+      (when n (elline--seg (number-to-string n) (elline--color 'bg-alt) (elline--color 'accent))))))
 
 (defun elline--status ()
   (let* ((ro     buffer-read-only)
@@ -309,78 +289,47 @@ BG defaults to `bg-main`."
     (elline--seg (concat (when remote (concat (elline--icon 'oct "globe" "🌐") " ")) name)
                  (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
 
-
-;; Project/Tab awareness
-;; ---------------------
-
-(defvar-local elline--cached-project-name nil
-  "Buffer-local cache for the current project name.")
-(defvar-local elline--cached-project-root nil
-  "Buffer-local cache for the current project root directory.")
+(defvar-local elline--cached-project-name nil)
+(defvar-local elline--cached-project-root nil)
 
 (defun elline--update-project-cache ()
-  "Update buffer-local project cache on hooks."
   (let ((proj (ignore-errors (project-current))))
     (if proj
         (let ((root (project-root proj)))
           (unless (equal root elline--cached-project-root)
             (setq elline--cached-project-root root
                   elline--cached-project-name
-                  (if (fboundp 'project-name)
-                      (project-name proj)
-                    (file-name-nondirectory (directory-file-name root))))))
-      (setq elline--cached-project-root nil
-            elline--cached-project-name nil))))
+                  (if (fboundp 'project-name) (project-name proj) (file-name-nondirectory (directory-file-name root))))))
+      (setq elline--cached-project-root nil elline--cached-project-name nil))))
 
-;; update cache only when buffers/directories actually change
 (add-hook 'find-file-hook #'elline--update-project-cache)
 (add-hook 'dired-mode-hook #'elline--update-project-cache)
 (add-hook 'after-change-major-mode-hook #'elline--update-project-cache)
 (add-hook 'buffer-list-update-hook #'elline--update-project-cache)
 
 (defun elline--frame-has-user-tabs-p ()
-  "Return non-nil when the current frame has more than the built-in default tab."
-  (let ((tabs (frame-parameter nil 'tabs)))
-    (> (length (if (listp tabs) tabs nil)) 1)))
+  (let ((tabs (frame-parameter nil 'tabs))) (> (length (if (listp tabs) tabs nil)) 1)))
 
 (defun elline--project ()
-  "Show the current project name.
-Uses buffer-local cache to avoid constantly calling `project-current' during rendering."
   (when (and elline-show-project (> (window-width) 40))
-    ;; fallback: update cache if somehow nil like newly created buffer
-    (unless elline--cached-project-root
-      (elline--update-project-cache))
-    
+    (unless elline--cached-project-root (elline--update-project-cache))
     (when elline--cached-project-name
-      (let* ((icon (when (elline--frame-has-user-tabs-p)
-                     (elline--icon 'oct "repo" "📁"))))
-        (elline--seg elline--cached-project-name
-                     (elline--color 'bg-alt)
-                     (elline--color 'accent)
-                     icon)))))
+      (let ((icon (when (elline--frame-has-user-tabs-p) (elline--icon 'oct "repo" "📁"))))
+        (elline--seg elline--cached-project-name (elline--color 'bg-alt) (elline--color 'accent) icon)))))
 
 (defun elline--git ()
-  "Check if `vc-mode' exists and is for Git first.
-Then extract the branch name since Emacs has already done the work."
   (when (and vc-mode (stringp vc-mode) (string-match-p "^ Git" vc-mode))
-    (let* (
-           (branch (replace-regexp-in-string "^ Git[:-]?\\s-*" "" vc-mode))
-           ;; check for indicator (: or *) Emacs natively adds
+    (let* ((branch (replace-regexp-in-string "^ Git[:-]?\\s-*" "" vc-mode))
            (dirty  (string-match-p "^ Git[:*]" vc-mode))
            (icon   (elline--icon 'oct "git_branch" "")))
-      (elline--seg branch (elline--color 'bg-alt)
-                   (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))
+      (elline--seg branch (elline--color 'bg-alt) (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))
 
 (defun elline--macro ()
   (when defining-kbd-macro
-    ;; Theme-adaptive foreground instead of harsh #ffffff
-    (elline--seg "REC" (elline--color 'error)
-                 (elline--color 'bg-main)
-                 (elline--icon 'fa "circle" "●") t)))
+    (elline--seg "REC" (elline--color 'error) (elline--color 'bg-main) (elline--icon 'fa "circle" "●") t)))
 
 (defun elline--selection ()
   (when (and (use-region-p) (> (window-width) 80))
-    ;; Use fg here instead of accent so it's readable on bg-alt2
     (elline--seg (format "%dL %dC" (count-lines (region-beginning) (region-end)) (abs (- (region-end) (region-beginning))))
                  (elline--color 'bg-alt) (elline--color 'fg))))
 
@@ -392,14 +341,12 @@ Then extract the branch name since Emacs has already done the work."
 (defun elline--process ()
   (when mode-line-process
     (let ((str (format-mode-line mode-line-process)))
-      (unless (string-blank-p str)
-        (elline--seg str (elline--color 'bg-alt2) (elline--color 'accent))))))
+      (unless (string-blank-p str) (elline--seg str (elline--color 'bg-alt2) (elline--color 'accent))))))
 
 (defun elline--lsp ()
   (when (> (window-width) 60)
     (when (or (bound-and-true-p lsp-mode) (bound-and-true-p eglot--managed-mode))
-      (elline--seg "LSP" (elline--color 'bg-alt) (elline--color 'success)
-                   (elline--icon 'codicon "symbol_method" "λ")))))
+      (elline--seg "LSP" (elline--color 'bg-alt) (elline--color 'success) (elline--icon 'codicon "symbol_method" "λ")))))
 
 (defun elline--flycheck ()
   (when (and (bound-and-true-p flycheck-mode) (fboundp 'flycheck-count-errors) (> (window-width) 50))
@@ -407,28 +354,19 @@ Then extract the branch name since Emacs has already done the work."
            (e (or (alist-get 'error counts) 0))
            (w (or (alist-get 'warning counts) 0))
            (i (or (alist-get 'info counts) 0))
-           (bg (elline--color 'bg-alt))) ;; bg-alt to continue the block
+           (bg (elline--color 'bg-alt)))
       (concat
-       (propertize (format " %s %d" (elline--icon 'oct "x_circle" "✖") e) 'face `(:background ,bg :foreground ,(if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d" (elline--icon 'oct "alert" "⚠") w)    'face `(:background ,bg :foreground ,(if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)    'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
+       (elline--seg (format "%s %d" (elline--icon 'oct "x_circle" "✖") e) bg (if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) nil t)
+       (elline--seg (format "%s %d" (elline--icon 'oct "alert" "⚠") w)    bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) nil t)
+       (elline--seg (format "%s %d" (elline--icon 'oct "info" "ℹ") i)    bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) nil t)))))
 
 (defun elline--flymake-count (type)
-  "Robustly count Flymake diagnostics matching TYPE ('error, 'warning, 'note)."
   (let ((count 0))
     (dolist (d (flymake-diagnostics))
       (let* ((diag-type (flymake-diagnostic-type d))
-             ;; backends like Eglot use derived types 'eglot-error
              (category (or (get diag-type 'flymake-category) diag-type)))
-        (when (or (eq category (pcase type
-                                 ('error   'flymake-error)
-                                 ('warning 'flymake-warning)
-                                 ('note    'flymake-note)))
-                  ;; fallback to older backend that use raw keywords
-                  (eq diag-type (pcase type
-                                  ('error   :error)
-                                  ('warning :warning)
-                                  ('note    :note))))
+        (when (or (eq category (pcase type ('error 'flymake-error) ('warning 'flymake-warning) ('note 'flymake-note)))
+                  (eq diag-type (pcase type ('error :error) ('warning :warning) ('note :note))))
           (cl-incf count))))
     count))
 
@@ -439,12 +377,9 @@ Then extract the branch name since Emacs has already done the work."
            (i (elline--flymake-count 'note))
            (bg (elline--color 'bg-alt)))
       (concat
-       (propertize (format " %s %d" (elline--icon 'oct "x_circle" "✖") e)
-                   'face `(:background ,bg :foreground ,(if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d" (elline--icon 'oct "alert" "⚠") w)
-                   'face `(:background ,bg :foreground ,(if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) :weight bold))
-       (propertize (format " %s %d " (elline--icon 'oct "info" "ℹ") i)
-                   'face `(:background ,bg :foreground ,(if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) :weight bold))))))
+       (elline--seg (format "%s %d" (elline--icon 'oct "x_circle" "✖") e) bg (if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) nil t)
+       (elline--seg (format "%s %d" (elline--icon 'oct "alert" "⚠") w)    bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) nil t)
+       (elline--seg (format "%s %d" (elline--icon 'oct "info" "ℹ") i)    bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) nil t)))))
 
 (defun elline--encoding ()
   (when (and buffer-file-coding-system (> (window-width) 40))
@@ -452,7 +387,6 @@ Then extract the branch name since Emacs has already done the work."
            (eol-type (coding-system-eol-type buffer-file-coding-system))
            (eol      (pcase eol-type (0 "LF") (1 "CRLF") (2 "CR") (_ "??")))
            (coding   (cond ((string-match-p "utf-8" sys) "UTF-8") ((string-match-p "latin-1" sys) "LATIN-1") (t (upcase sys)))))
-      ;; Alternating block background, full fg for readability
       (elline--seg (format "%s %s" coding eol) (elline--color 'bg-alt2) (elline--color 'fg)))))
 
 (defun elline--position ()
@@ -476,142 +410,111 @@ Then extract the branch name since Emacs has already done the work."
 ;; -------------------------------------------------------------------------
 
 (defvar elline-left-segments
-  '(elline--active-bar elline--evil elline--winum elline--status elline--buffer-name elline--macro elline--selection elline--major-mode elline--git elline--project elline--process)
-  "List of functions to render on the left side of the modeline.")
+  '(elline--active-bar elline--evil elline--winum elline--status elline--buffer-name elline--macro elline--selection elline--major-mode elline--git elline--project elline--process))
 
 (defvar elline-right-segments
-  '(elline--lsp elline--flycheck elline--flymake elline--encoding elline--position elline--percentage elline--buffer-size elline--time)
-  "List of functions to render on the right side of the modeline.")
+  '(elline--lsp elline--flycheck elline--flymake elline--encoding elline--position elline--percentage elline--buffer-size elline--time))
 
 (defmacro elline-def-segment (name bg fg &rest body)
-  "Define a new modeline segment named NAME.
-BODY should return a string. BG and FG dictate the theme colors (e.g., 'bg-alt, 'accent).
-This automatically applies the correct blocks and separators."
+  "Define a new modeline segment named NAME. Passes raw string to preserve icon fonts."
   `(defun ,name ()
      (let ((str (progn ,@body)))
-       (when (and str (not (string-blank-p str)))
+       (when (and (stringp str) (not (string-blank-p str)))
          (elline--seg str (elline--color ,bg) (elline--color ,fg))))))
 
 (defun elline-add-segment (section segment &optional after-segment)
-  "Add SEGMENT to SECTION ('left or 'right).
-If AFTER-SEGMENT is provided, injects it immediately after that segment."
   (let* ((list-var (if (eq section 'left) 'elline-left-segments 'elline-right-segments))
          (list-val (symbol-value list-var)))
     (if after-segment
         (let ((pos (cl-position after-segment list-val)))
-          (if pos
-              (set list-var (append (cl-subseq list-val 0 (1+ pos))
-                                    (list segment)
-                                    (cl-subseq list-val (1+ pos))))
-            (add-to-list list-var segment t))) ; Fallback to append if 'after' not found
-      (add-to-list list-var segment t)))) ; Default append
+          (if pos (set list-var (append (cl-subseq list-val 0 (1+ pos)) (list segment) (cl-subseq list-val (1+ pos)))) (add-to-list list-var segment t)))
+      (add-to-list list-var segment t))))
 
 ;; Zones
 ;; -------------------------------------------------------------------------
 
 (defun elline--active-bar ()
   (when (and (elline--active-p) (eq elline-theme-style 'flat))
-    (propertize "▌"
-                'face `(:foreground ,(elline--color 'accent)
-                                    :background ,(elline--color 'bg-main)))))
+    (propertize "▌" 'face `(:foreground ,(elline--color 'accent) :background ,(elline--color 'bg-main)))))
 
 (defun elline--build-left (default-bg w)
-  (elline--join-left
-   (delq nil (mapcar (lambda (f) (when (fboundp f) (funcall f))) elline-left-segments))
-   default-bg))
+  (elline--join-left (delq nil (mapcar (lambda (f) (when (fboundp f) (funcall f))) elline-left-segments)) default-bg))
 
 (defun elline--build-right (default-bg w)
-  (elline--join-right
-   (delq nil (mapcar (lambda (f) (when (fboundp f) (funcall f))) elline-right-segments))
-   default-bg))
+  (elline--join-right (delq nil (mapcar (lambda (f) (when (fboundp f) (funcall f))) elline-right-segments)) default-bg))
 
 ;; Main setup
 ;; -------------------------------------------------------------------------
+
+(defun elline--right-align-width (str)
+  "Calculate exact pixel width for robust right alignment[cite: 1]."
+  (if (fboundp 'string-pixel-width)
+      (list (string-pixel-width str))
+    (string-width str)))
 
 (defun elline--build ()
   (let* ((w            (window-width))
          (default-bg   (elline--color 'bg-main))
          (left         (elline--build-left default-bg w))
          (right        (elline--build-right default-bg w))
-         (right-width  (if right (string-width right) 0)))
-    (list left ;; force right section to the far right
-          `(:propertize " " display ((space :align-to (- (+ right right-fringe right-margin) ,right-width))))
+         ;; Pixel-based alignment stops right-side drift[cite: 1, 2]
+         (align-width  (if right (elline--right-align-width right) 0)))
+    (list left
+          `(:propertize " " display ((space :align-to (- (+ right right-fringe right-margin) ,align-width))))
           right)))
 
-(defun elline-toggle-project ()
-  "Toggle display of the project name in the mode-line."
-  (interactive)
-  (setq elline-show-project (not elline-show-project))
-  (message "Modeline project: %s" (if elline-show-project "on" "off"))
-  (force-mode-line-update t))
-
 (defun elline--apply-height ()
-  "Apply `elline-height` to modeline faces."
   (set-face-attribute 'mode-line nil :height elline-height)
   (set-face-attribute 'mode-line-inactive nil :height elline-height)
   (force-mode-line-update t))
 
+;; (Keybindings and other toggle functions remain standard...)
 (defun elline-cycle-icons ()
   (interactive)
-  (setq elline-icon-provider (pcase elline-icon-provider ('nerd-icons 'all-the-icons) ('all-the-icons 'none) ('none 'nerd-icons)))
-  (message "Modeline icons: %s" elline-icon-provider)
+  (setq elline-icon-provider
+        (pcase elline-icon-provider
+          ('nerd-icons 'all-the-icons) ('all-the-icons 'none) ('none 'nerd-icons)))
   (force-mode-line-update t))
 
 (defun elline-toggle-time ()
   (interactive)
   (setq elline-show-time (not elline-show-time))
-  (message "Modeline clock: %s" (if elline-show-time "on" "off"))
   (force-mode-line-update t))
 
 (defun elline-toggle-style ()
-  "Toggle between flat and blocks theme styles."
   (interactive)
-  (setq elline-theme-style
-        (if (eq elline-theme-style 'flat) 'blocks 'flat))
-  (message "Modeline style: %s" elline-theme-style)
+  (setq elline-theme-style (if (eq elline-theme-style 'flat) 'blocks 'flat))
   (force-mode-line-update t))
 
 (defun elline-cycle-separators ()
-  "Cycle through separator styles.  (Requires 'blocks' style active)."
   (interactive)
   (setq elline-separator-style
         (pcase elline-separator-style
-          ('none  'arrow)
-          ('arrow 'curve)
-          ('curve 'slant)
-          ('slant 'slant-forward)
-          ('slant-forward 'none)))
-  (message "Modeline separators: %s" elline-separator-style)
-  (unless (eq elline-theme-style 'blocks)
-    (message "Note: Separators are only visible when style is set to 'blocks' (C-c m b)."))
+          ('none 'arrow) ('arrow 'curve) ('curve 'slant) ('slant 'slant-forward) ('slant-forward 'none) (_ 'none)))
   (force-mode-line-update t))
 
 (defun elline--refresh-all-buffers ()
-  (dolist (buf (buffer-list)) (with-current-buffer buf (force-mode-line-update)))
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf (force-mode-line-update)))
   (redisplay t))
+
+(defvar elline-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c m i") #'elline-cycle-icons)
+    (define-key map (kbd "C-c m t") #'elline-toggle-time)
+    (define-key map (kbd "C-c m s") #'elline-cycle-separators)
+    (define-key map (kbd "C-c m b") #'elline-toggle-style)
+    map))
 
 ;;;###autoload
 (define-minor-mode elline-mode
-  "Toggle the beautiful modeline globally."
+  "Toggle elline globally."
   :global t
   :lighter nil
+  :keymap elline-mode-map
   (if elline-mode
-      (progn
-        (setq-default mode-line-format '("%e" (:eval (elline--build))))
-        (elline--apply-height)
-        (elline--refresh-all-buffers))
-    (progn
-      (setq-default mode-line-format (default-value 'mode-line-format))
-      (elline--refresh-all-buffers))))
-
-;; Keybindings
-;; -------------------------------------------------------------------------
-
-(global-set-key (kbd "C-c m i") #'elline-cycle-icons)
-(global-set-key (kbd "C-c m t") #'elline-toggle-time)
-(global-set-key (kbd "C-c m s") #'elline-cycle-separators)
-(global-set-key (kbd "C-c m b") #'elline-toggle-style)
-(global-set-key (kbd "C-c m p") #'elline-toggle-project)
+      (progn (setq-default mode-line-format '("%e" (:eval (elline--build)))) (elline--apply-height) (elline--refresh-all-buffers))
+    (setq-default mode-line-format (default-value 'mode-line-format)) (elline--refresh-all-buffers)))
 
 (provide 'elline)
 ;;; elline.el ends here
