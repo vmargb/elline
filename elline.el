@@ -43,7 +43,7 @@
   :type 'boolean
   :group 'elline)
 
-(defcustom elline-height 160
+(defcustom elline-height 170
   "Height of the modeline (120 is default font size)."
   :type 'integer
   :group 'elline)
@@ -188,29 +188,31 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
          (t default-bg)))
     default-bg))
 
+;; Note: join-left and join-right are updated to now use a
+;; parts list which prevents the old O(n^2) string concatenation to O(n)
 (defun elline--join-left (segs default-bg)
-  "Join SEGS with left-pointing separators."
-  (let* ((blocks-p (eq elline-theme-style 'blocks))
+  (let* ((blocks-p  (eq elline-theme-style 'blocks))
          (sep-glyph (and blocks-p
                          (not (eq elline-separator-style 'none))
                          (car (alist-get elline-separator-style elline-separators))))
-         (res "")
-         (prev-bg default-bg))
+         (parts    '())
+         (prev-bg   default-bg))
     (dolist (seg segs)
       (when (and seg (not (string-empty-p seg)))
         (let ((cur-bg (elline--get-bg seg default-bg)))
-          (when (and sep-glyph (not (string= prev-bg cur-bg)) (not (string= res "")))
-            (let ((sep (propertize sep-glyph
-                                   'face `(:foreground ,prev-bg :background ,cur-bg :height ,elline-separator-height)
-                                   'display `((raise . ,elline-separator-raise)))))
-              (setq res (concat res sep))))
-          (setq res (concat res seg))
+          (when (and sep-glyph (not (string= prev-bg cur-bg)) parts)
+            (push (propertize sep-glyph
+                              'face    `(:foreground ,prev-bg :background ,cur-bg :height ,elline-separator-height)
+                              'display `((raise . ,elline-separator-raise)))
+                  parts))
+          (push seg parts)
           (setq prev-bg cur-bg))))
     (when (and sep-glyph (not (string= prev-bg default-bg)))
-      (setq res (concat res (propertize sep-glyph
-                                        'face `(:foreground ,prev-bg :background ,default-bg :height ,elline-separator-height)
-                                        'display `((raise . ,elline-separator-raise))))))
-    res))
+      (push (propertize sep-glyph
+                        'face    `(:foreground ,prev-bg :background ,default-bg :height ,elline-separator-height)
+                        'display `((raise . ,elline-separator-raise)))
+            parts))
+    (apply #'concat (nreverse parts))))
 
 (defun elline--join-right (segs default-bg)
   "Join SEGS with right-pointing separators."
@@ -218,18 +220,19 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
          (sep-glyph (and blocks-p
                          (not (eq elline-separator-style 'none))
                          (cdr (alist-get elline-separator-style elline-separators))))
-         (res "")
+         (parts '())
          (left-bg default-bg))
     (dolist (seg segs)
       (when (and seg (not (string-empty-p seg)))
         (let ((right-bg (elline--get-bg seg default-bg)))
           (when (and sep-glyph (not (string= left-bg right-bg)))
-            (setq res (concat res (propertize sep-glyph
-                                              'face `(:foreground ,right-bg :background ,left-bg :height ,elline-separator-height)
-                                              'display `((raise . ,elline-separator-raise))))))
-          (setq res (concat res seg))
+            (push (propertize sep-glyph
+                              'face `(:foreground ,right-bg :background ,left-bg :height ,elline-separator-height)
+                              'display `((raise . ,elline-separator-raise)))
+                  parts))
+          (push seg parts)
           (setq left-bg right-bg))))
-    res))
+    (apply #'concat (nreverse parts))))
 
 ;; Segments
 ;; -------------------------------------------------------------------------
