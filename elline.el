@@ -103,39 +103,41 @@ Negative values lower the glyph, positive values raise it."
                         (color-name-to-rgb c2)))
     (error c1)))
 
-(defvar elline--color-cache (make-hash-table :test 'equal)
-  "Optimised cache for generated mode-line colors.")
+(defvar elline--build-colors nil
+  "Plist of pre-computed colors, bound dynamically during `elline--build'.")
 
-(defun elline--color (key)
-  "Return a theme-adaptive colour for KEY, utilising a color cache."
-  (let* ((active   (elline--active-p))
+(defun elline--snapshot-colors ()
+  "Compute all theme colors in one pass.  Call once per build."
+  (let* ((active  (elline--active-p))
          (blocks-p (eq elline-theme-style 'blocks))
          (ml-face  (if active 'mode-line 'mode-line-inactive))
          (bg       (or (face-attribute ml-face :background nil 'default) "#1e1e2e"))
          (fg       (or (face-attribute ml-face :foreground nil 'default) "#cdd6f4"))
          (accent   (or (face-attribute 'font-lock-keyword-face :foreground nil 'default) "#89b4fa"))
-         (warning  (or (face-attribute 'warning  :foreground nil 'default) "#f9e2af"))
-         (error-c  (or (face-attribute 'error    :foreground nil 'default) "#f38ba8"))
-         (success  (or (face-attribute 'success  :foreground nil 'default) "#a6e3a1"))
-         (cache-key (list key active blocks-p bg fg accent warning error-c success)))
-    (or (gethash cache-key elline--color-cache)
-        (let* ((rgb (color-name-to-rgb bg))
-               (light (and rgb (> (apply #'+ rgb) 1.5)))
-               (val (pcase key
-                      ('bg-main bg)
-                      ('bg-alt  (if blocks-p (elline--blend bg accent (if active (if light 0.22 0.12) (if light 0.12 0.06))) bg))
-                      ('bg-alt2 (if blocks-p (elline--blend bg accent (if active (if light 0.40 0.25) (if light 0.22 0.12))) bg))
-                      ('bg-neutral (if blocks-p (elline--blend bg fg (if active (if light 0.18 0.10) (if light 0.10 0.05))) bg))
-                      ('fg      fg)
-                      ('accent  accent)
-                      ('warning warning)
-                      ('error   error-c)
-                      ('success success)
-                      ('fg-dim  (elline--blend fg bg (if active (if light 0.35 0.55) (if light 0.45 0.65))))
-                      ('fg-inactive (elline--blend fg bg (if light 0.40 0.60)))
-                      (_ bg))))
-          (puthash cache-key val elline--color-cache)
-          val))))
+         (warning  (or (face-attribute 'warning :foreground nil 'default) "#f9e2af"))
+         (error-c  (or (face-attribute 'error   :foreground nil 'default) "#f38ba8"))
+         (success  (or (face-attribute 'success :foreground nil 'default) "#a6e3a1"))
+         (rgb      (color-name-to-rgb bg))
+         (light    (and rgb (> (apply #'+ rgb) 1.5))))
+    (list 'bg-main  bg
+          'fg       fg
+          'accent   accent
+          'warning  warning
+          'error    error-c
+          'success  success
+          'bg-alt   (if blocks-p (elline--blend bg accent (if active (if light 0.22 0.12) (if light 0.12 0.06))) bg)
+          'bg-alt2  (if blocks-p (elline--blend bg accent (if active (if light 0.40 0.25) (if light 0.22 0.12))) bg)
+          'bg-neutral (if blocks-p (elline--blend bg fg (if active (if light 0.18 0.10) (if light 0.10 0.05))) bg)
+          'fg-dim   (elline--blend fg bg (if active (if light 0.35 0.55) (if light 0.45 0.65)))
+          'fg-inactive (elline--blend fg bg (if light 0.40 0.60)))))
+
+(defun elline--color (key)
+  "Return theme color for KEY.  Use per-build snapshot when available."
+  (or (plist-get elline--build-colors key)
+      ;; Fallback for calls outside a build (e.g. active-bar propertize)
+      (progn (unless elline--build-colors
+               (setq elline--build-colors (elline--snapshot-colors)))
+             (plist-get elline--build-colors key))))
 
 ;; Icon selection
 ;; -------------------------------------------------------------------------
@@ -456,12 +458,12 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
     (string-width str)))
 
 (defun elline--build ()
-  (let* ((w            (window-width))
-         (default-bg   (elline--color 'bg-main))
-         (left         (elline--build-left default-bg w))
-         (right        (elline--build-right default-bg w))
-         ;; Pixel-based alignment stops right-side drift[cite: 1, 2]
-         (align-width  (if right (elline--right-align-width right) 0)))
+  (let* ((elline--build-colors (elline--snapshot-colors))
+         (w           (window-width))
+         (default-bg  (elline--color 'bg-main))
+         (left        (elline--build-left default-bg w))
+         (right       (elline--build-right default-bg w))
+         (align-width (if right (elline--right-align-width right) 0)))
     (list left
           `(:propertize " " display ((space :align-to (- (+ right right-fringe right-margin) ,align-width))))
           right)))
