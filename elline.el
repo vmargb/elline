@@ -87,6 +87,16 @@ Negative values lower the glyph, positive values raise it."
   :type 'boolean
   :group 'elline)
 
+;; height cache
+(defvar elline--cached-abs-height nil
+  "Cached absolute height to avoid repeated floor calculations.")
+
+(defun elline--update-abs-height ()
+  "Recalculate and cache the absolute segment height."
+  (setq elline--cached-abs-height (floor (* elline-height elline-separator-height))))
+
+;; -------------------------------------------------------------------------
+
 ;; Theme-adaptive colour handling
 ;; -------------------------------------------------------------------------
 
@@ -173,8 +183,8 @@ Negative values lower the glyph, positive values raise it."
 Uses an absolute integer height to prevent icon scaling from stretching the line."
   (let* ((bg (or bg (elline--color 'bg-main)))
          (fg (or fg (elline--color 'fg)))
-         ;; absolute integer height stops Emacs from multiplying icon scale
-         (abs-height (floor (* elline-height elline-separator-height)))
+         (abs-height (or elline--cached-abs-height ;; height cache
+                         (floor (* elline-height elline-separator-height))))
          (base-face `(:background ,bg :foreground ,fg :height ,abs-height ,@(when bold '(:weight bold))))
          (res (concat " " (when icon (concat icon " ")) text " ")))
     (add-face-text-property 0 (length res) base-face nil res)
@@ -451,7 +461,7 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
 ;; -------------------------------------------------------------------------
 
 (defun elline--right-align-width (str)
-  "Calculate exact pixel width for robust right alignment[cite: 1]."
+  "Calculate exact pixel width for robust right alignment."
   (if (fboundp 'string-pixel-width)
       (list (string-pixel-width str))
     (string-width str)))
@@ -468,6 +478,8 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
           right)))
 
 (defun elline--apply-height ()
+  "Apply height or refresh cache whenever height is applied."
+  (elline--update-abs-height)
   (set-face-attribute 'mode-line nil :height elline-height)
   (set-face-attribute 'mode-line-inactive nil :height elline-height)
   (force-mode-line-update t))
@@ -517,7 +529,9 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
   :lighter nil
   :keymap elline-mode-map
   (if elline-mode
-      (progn (setq-default mode-line-format '("%e" (:eval (elline--build)))) (elline--apply-height) (elline--refresh-all-buffers))
+      (progn (setq-default mode-line-format '("%e" (:eval (elline--build))))
+             (elline--apply-height)
+             (elline--refresh-all-buffers))
     (setq-default mode-line-format (default-value 'mode-line-format)) (elline--refresh-all-buffers)))
 
 (provide 'elline)
