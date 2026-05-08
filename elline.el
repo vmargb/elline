@@ -12,6 +12,7 @@
 ;; - Evil mode state indicator with Nerd Icons
 ;; - Inactive windows are visibly dimmed
 ;; - Modular left, center, and right zone joiners for seamless segments
+;; - Idle-cache rendering: no redraws during scrolling/commands, only on idle
 
 ;;; Code:
 
@@ -43,7 +44,7 @@
   :type 'boolean
   :group 'elline)
 
-(defcustom elline-height 170
+(defcustom elline-height 150
   "Height of the modeline (120 is default font size)."
   :type 'integer
   :group 'elline)
@@ -87,6 +88,14 @@ Negative values lower the glyph, positive values raise it."
   :type 'boolean
   :group 'elline)
 
+(defcustom elline-idle-delay 0.1
+  "Seconds of idle delay before the mode-line is allowed to redraw.
+During commands and scrolling the mode-line is frozen at its last
+cached value until the user pauses for this long the cache is
+invalidated and a single redraw is triggered."
+  :type 'number
+  :group 'elline)
+
 ;; height cache
 (defvar elline--cached-abs-height nil
   "Cached absolute height to avoid repeated floor calculations.")
@@ -95,7 +104,99 @@ Negative values lower the glyph, positive values raise it."
   "Recalculate and cache the absolute segment height."
   (setq elline--cached-abs-height (floor (* elline-height elline-separator-height))))
 
+;; Idle-render cache
 ;; -------------------------------------------------------------------------
+;; Three buffer-local variables are used in the debounce strategy:
+;;   elline--cached-line    the last fully-built mode-line value
+;;   elline--cache-key      the state snapshot that produced it
+;;   elline--refresh-timer  pending idle timer (one per buffer)
+;;
+;; elline--render is called by (:eval …) on every display pass.  It
+;; returns the cached value immediately unless the key has changed.
+;;
+;; After every command / scroll event, elline--schedule-refresh cancels
+;; any ongoing timer and arms a new one(debouncing).
+;; Only when the user actually stops does the timer fire. Then
+;; force-mode-line-update does exactly one redraw.
+;;
+;; A separate 60-second repeating timer keeps the clock accurate even
+;; when the user is completely idle.
+
+(defvar-local elline--cached-line nil
+  "Last built line value for this buffer.")
+
+(defvar-local elline--cache-key nil
+  "State snapshot that produced `elline--cached-line'.")
+
+(defvar-local elline--refresh-timer nil
+  "Debounce timer for this buffer.")
+
+(defvar elline--clock-timer nil
+  "Repeating 60-second timer that keeps the HH:MM display accurate.")
+
+(defun elline--compute-cache-key ()
+  "Return a snapshot of all state that affects the mode-line."
+  (list (window-width)
+        (elline--active-p)
+        elline-theme-style
+        elline-separator-style
+        elline-show-time
+        ;; only include the current minute when the clock segment is on,
+        ;; so the display advances without needing a cursor movement.
+        (when elline-show-time (format-time-string "%H:%M"))
+        buffer-read-only
+        (buffer-modified-p)
+        vc-mode
+        major-mode
+        elline-icon-provider
+        elline-show-project))
+
+(defun elline--render ()
+  "Return the cached mode-line, rebuilding only when state has changed."
+  (let ((key (elline--compute-cache-key)))
+    (unless (equal key elline--cache-key)
+      (setq elline--cache-key  key
+            elline--cached-line (elline--build)))
+    elline--cached-line))
+
+(defun elline--schedule-refresh (&rest _)
+  "Debounce line redraws, cancel any pending timer and create a new one.
+The line will not be redrawn until the idle for `elline-idle-delay' seconds"
+  (when elline--refresh-timer
+    (cancel-timer elline--refresh-timer))
+  (setq elline--refresh-timer
+        (run-with-idle-timer
+         elline-idle-delay nil
+         ;; Capture the buffer so the cache-key is nilled in the right place
+         ;; even if focus has moved by the time the timer fires.
+         (let ((buf (current-buffer)))
+           (lambda ()
+             (when (buffer-live-p buf)
+               (with-current-buffer buf
+                 (setq elline--refresh-timer nil
+                       elline--cache-key     nil)))
+             (force-mode-line-update t))))))
+
+(defun elline--start-clock-timer ()
+  "Start or restart the 60-second repeating timer for the clock segment."
+  (elline--stop-clock-timer)
+  (setq elline--clock-timer
+        (run-with-timer 60 60
+                        (lambda ()
+                          ;; invalidate every live buffer so the minute
+                          ;; ticks over wherever it is displayed.
+                          (dolist (buf (buffer-list))
+                            (when (buffer-live-p buf)
+                              (with-current-buffer buf
+                                (setq elline--cache-key nil))))
+                          (force-mode-line-update t)))))
+
+(defun elline--stop-clock-timer ()
+  "Cancel the clock refresh timer if it is running."
+  (when elline--clock-timer
+    (cancel-timer elline--clock-timer)
+    (setq elline--clock-timer nil)))
+
 
 ;; Theme-adaptive colour handling
 ;; -------------------------------------------------------------------------
@@ -484,30 +585,44 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
   (set-face-attribute 'mode-line-inactive nil :height elline-height)
   (force-mode-line-update t))
 
-;; (Keybindings and other toggle functions remain standard...)
+;; Interactive commands
+;; -------------------------------------------------------------------------
+;; each command nils the cache key so the next redisplay (triggered by
+;; force-mode-line-update) picks up the change immediately, bypassing the
+;; normal debounce path.
+
+(defun elline--invalidate-cache-now ()
+  "Nil the cache key in all live buffers and force an immediate redisplay.
+Use this after interactive setting changes so the effect is instant."
+  (dolist (buf (buffer-list))
+    (when (buffer-live-p buf)
+      (with-current-buffer buf
+        (setq elline--cache-key nil))))
+  (force-mode-line-update t))
+
 (defun elline-cycle-icons ()
   (interactive)
   (setq elline-icon-provider
         (pcase elline-icon-provider
           ('nerd-icons 'all-the-icons) ('all-the-icons 'none) ('none 'nerd-icons)))
-  (force-mode-line-update t))
+  (elline--invalidate-cache-now))
 
 (defun elline-toggle-time ()
   (interactive)
   (setq elline-show-time (not elline-show-time))
-  (force-mode-line-update t))
+  (elline--invalidate-cache-now))
 
 (defun elline-toggle-style ()
   (interactive)
   (setq elline-theme-style (if (eq elline-theme-style 'flat) 'blocks 'flat))
-  (force-mode-line-update t))
+  (elline--invalidate-cache-now))
 
 (defun elline-cycle-separators ()
   (interactive)
   (setq elline-separator-style
         (pcase elline-separator-style
           ('none 'arrow) ('arrow 'curve) ('curve 'slant) ('slant 'slant-forward) ('slant-forward 'none) (_ 'none)))
-  (force-mode-line-update t))
+  (elline--invalidate-cache-now))
 
 (defun elline--refresh-all-buffers ()
   (dolist (buf (buffer-list))
@@ -529,10 +644,25 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
   :lighter nil
   :keymap elline-mode-map
   (if elline-mode
-      (progn (setq-default mode-line-format '("%e" (:eval (elline--build))))
-             (elline--apply-height)
-             (elline--refresh-all-buffers))
-    (setq-default mode-line-format (default-value 'mode-line-format)) (elline--refresh-all-buffers)))
+      (progn
+        (setq-default mode-line-format '("%e" (:eval (elline--render))))
+        (add-hook 'post-command-hook     #'elline--schedule-refresh)
+        (add-hook 'window-scroll-functions #'elline--schedule-refresh)
+        (when elline-show-time (elline--start-clock-timer))
+        (elline--apply-height)
+        (elline--refresh-all-buffers))
+    ;; remove hooks, cancel all pending timers and restore format
+    (remove-hook 'post-command-hook      #'elline--schedule-refresh)
+    (remove-hook 'window-scroll-functions #'elline--schedule-refresh)
+    (elline--stop-clock-timer)
+    (dolist (buf (buffer-list))
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (when elline--refresh-timer
+            (cancel-timer elline--refresh-timer)
+            (setq elline--refresh-timer nil)))))
+    (setq-default mode-line-format (default-value 'mode-line-format))
+    (elline--refresh-all-buffers)))
 
 (provide 'elline)
 ;;; elline.el ends here
