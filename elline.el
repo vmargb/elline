@@ -27,10 +27,11 @@
   "Beautiful, adaptive mode-line."
   :group 'elline)
 
-(defcustom elline-icon-provider 'nerd-icons
-  "Icon backend: `nerd-icons', `all-the-icons', or `none'."
+(defcustom elline-icon-provider 'labels
+  "Icon backend: `nerd-icons', `all-the-icons', `labels', or `none'."
   :type '(choice (const nerd-icons)
                  (const all-the-icons)
+                 (const labels)
                  (const none))
   :group 'elline)
 
@@ -44,7 +45,7 @@
   :type 'boolean
   :group 'elline)
 
-(defcustom elline-height 150
+(defcustom elline-height 160
   "Height of the modeline (120 is default font size)."
   :type 'integer
   :group 'elline)
@@ -149,7 +150,11 @@ invalidated and a single redraw is triggered."
         vc-mode
         major-mode
         elline-icon-provider
-        elline-show-project))
+        elline-show-project
+        (elline--current-tab-name)
+        (ignore-errors
+          (let ((proj (project-current nil)))
+            (when proj (project-root proj))))))
 
 (defun elline--render ()
   "Return the cached mode-line, rebuilding only when state has changed."
@@ -257,24 +262,68 @@ The line will not be redrawn until the idle for `elline-idle-delay' seconds"
   "For each icon-provider, return an icon glyph for FAMILY with NAME."
   (let ((fallback (or fallback "")))
     (condition-case nil
-        (pcase elline-icon-provider
-          ('nerd-icons
-           (pcase family
-             ('oct     (nerd-icons-octicon  (concat "nf-oct-" name)))
-             ('fa      (nerd-icons-faicon   (concat "nf-fa-"  name)))
-             ('md      (nerd-icons-mdicon   (concat "nf-md-"  name)))
-             ('codicon (nerd-icons-codicon  (concat "nf-cod-" name)))
-             ('file    (or (nerd-icons-icon-for-file (or buffer-file-name (buffer-name)))
-                           (nerd-icons-faicon "nf-fa-file")))
-             ('mode    (or (nerd-icons-icon-for-mode major-mode)
-                           (nerd-icons-codicon "nf-cod-code")))))
-          ('all-the-icons
-           (pcase family
-             ('file (all-the-icons-icon-for-file (or buffer-file-name (buffer-name))))
-             ('mode (all-the-icons-icon-for-mode major-mode))
-             (_     (all-the-icons-faicon (or name "cog")))))
-          (_ fallback))
+        (let ((icon (pcase elline-icon-provider
+                      ('nerd-icons
+                       (pcase family
+                         ('oct     (nerd-icons-octicon  name))
+                         ('fa      (nerd-icons-faicon   name))
+                         ;; auto-prefix "md_" for nerd-icons material icons
+                         ('md      (nerd-icons-mdicon   (if (string-prefix-p "md_" name) name (concat "md_" name))))
+                         ('codicon (nerd-icons-codicon  name))
+                         ('file    (or (nerd-icons-icon-for-file (or buffer-file-name (buffer-name)))
+                                       (nerd-icons-faicon "file")))
+                         ('mode    (or (nerd-icons-icon-for-mode major-mode)
+                                       (nerd-icons-codicon "code")))))
+                      ('all-the-icons
+                       (pcase family
+                         ('oct     (all-the-icons-octicon name))
+                         ('fa      (all-the-icons-faicon name))
+                         ;; auto-strip "md_" for all-the-icons material icons
+                         ('md      (all-the-icons-material (replace-regexp-in-string "^md_" "" name)))
+                         ('file    (all-the-icons-icon-for-file (or buffer-file-name (buffer-name))))
+                         ('mode    (all-the-icons-icon-for-mode major-mode))
+                         (_        (all-the-icons-faicon (or name "cog")))))
+                      (_ fallback))))
+          ;; handle cases where the icon library returns nil or ""
+          (or (and (stringp icon) (not (string-empty-p icon)) icon) fallback))
       (error fallback))))
+
+(defun elline--segment-marker (label family name &optional fallback)
+  "Return LABEL in `labels' mode, otherwise an icon for FAMILY/NAME."
+  (if (eq elline-icon-provider 'labels)
+      label
+    (elline--icon family name fallback)))
+
+(defun elline--label-prefix (label text)
+  "TEXT with LABEL in `labels' mode."
+  (if (eq elline-icon-provider 'labels)
+      (format "%s %s" label text)
+    text))
+
+(defun elline--current-tab-name ()
+  "Return the current tab name, or nil when tabs are unavailable.
+And suppress the tab when its default/unnamed."
+  (let* ((tabs (or (and (fboundp 'tab-bar-tabs) (tab-bar-tabs))
+                   (frame-parameter nil 'tabs)))
+         (tab  (or (cl-find-if (lambda (tab) (eq (car tab) 'current-tab)) tabs)
+                   (car tabs)))
+         (name (and tab (alist-get 'name tab))))
+    (when (and (stringp name)
+               (not (string-empty-p name))
+               (not (member (downcase name) '("default" "tab 1"))))
+      name)))
+
+(defun elline--tab ()
+  "Current tab segment for the left side of the modeline.
+Hidden for the default unnamed tab."
+  (when (> (window-width) 30)
+    (let ((name (elline--current-tab-name)))
+      (when name
+        (elline--seg name
+                     (elline--color 'bg-alt)
+                     (elline--color 'accent)
+                     (elline--segment-marker "Tab:" 'oct "square" "▣")
+                     t)))))
 
 ;; Segment & Separator logic
 ;; -------------------------------------------------------------------------
@@ -356,15 +405,15 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
     (let* ((active   (elline--active-p))
            (blocks-p (eq elline-theme-style 'blocks))
            (state    (or evil-state 'normal))
-           (icon     (pcase state
-                       ('normal   (elline--icon 'oct "terminal" "⌨"))
-                       ('insert   (elline--icon 'oct "plus"    "➕"))
-                       ('visual   (elline--icon 'oct "eye"     "👁"))
-                       ('replace  (elline--icon 'oct "sync"    "↻"))
-                       ('operator (elline--icon 'oct "zap"     "⚡"))
-                       ('motion   (elline--icon 'oct "arrow_right" "➡"))
-                       ('emacs    (elline--icon 'oct "code"    "💻"))
-                       (_         (elline--icon 'oct "question" "?"))))
+           (label    (pcase state
+                       ('normal   "NOR")
+                       ('insert   "INS")
+                       ('visual   "VIS")
+                       ('replace  "REP")
+                       ('operator "OPR")
+                       ('motion   "MOT")
+                       ('emacs    "EMC")
+                       (_         "???")))
            (state-c  (pcase state
                        ('normal   (elline--color 'accent))
                        ('insert   (elline--color 'success))
@@ -376,34 +425,41 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
                        (_         (elline--color 'fg))))
            (bg       (if blocks-p (if active state-c (elline--color 'bg-alt2)) (elline--blend (elline--color 'bg-main) "#000000" 0.10)))
            (fg       (if blocks-p (if active (elline--color 'bg-main) (elline--color 'fg-dim)) state-c))
-           (content  (string-trim (format " %s " icon)))
-           (boxed    (concat " " content "  ")))
+           (boxed    (concat "  " label "  ")))
       (propertize boxed 'face `(:background ,bg :foreground ,fg :weight bold)))))
 
 (defun elline--winum ()
   (when (and (fboundp 'winum-get-number) (> (window-width) 20))
     (let ((n (winum-get-number)))
-      (when n (elline--seg (number-to-string n) (elline--color 'bg-alt) (elline--color 'accent))))))
+      (when n
+        (elline--seg (elline--label-prefix "Win:" (number-to-string n))
+                     (elline--color 'bg-alt)
+                     (elline--color 'accent))))))
 
 (defun elline--status ()
   (let* ((ro     buffer-read-only)
          (mod    (and (buffer-modified-p) (not ro)))
          (narrow (buffer-narrowed-p))
-         (icon   (cond (ro     (elline--icon 'oct "lock"        ""))
-                       (mod    (elline--icon 'oct "dot_fill"    "●"))
-                       (narrow (elline--icon 'oct "screen_full" "▼"))
-                       (t      (elline--icon 'oct "dot"         "○"))))
+         (label  (cond (ro "Read-only")
+                       (mod "Modified")
+                       (narrow "Narrowed")
+                       (t "Clean")))
+         (icon   (cond (ro     (elline--segment-marker "State:" 'oct "lock" ""))
+                       (mod    (elline--segment-marker "State:" 'oct "dot_fill" "●"))
+                       (narrow (elline--segment-marker "State:" 'oct "screen_full" "▼"))
+                       (t      (elline--segment-marker "State:" 'oct "dot" "○"))))
          (fg     (cond (ro     (elline--color 'error))
                        (mod    (elline--color 'warning))
                        (t      (elline--color 'fg)))))
-    (elline--seg "" (elline--color 'bg-alt) fg icon)))
+    (elline--seg (if (eq elline-icon-provider 'labels) label "")
+                 (elline--color 'bg-alt) fg icon)))
 
 (defun elline--buffer-name ()
   (let* ((name   (buffer-name))
          (remote (file-remote-p default-directory))
-         (icon   (elline--icon 'file nil "")))
-    (elline--seg (concat (when remote (concat (elline--icon 'oct "globe" "🌐") " ")) name)
-                 (elline--color 'bg-alt2) (elline--color 'fg) icon t)))
+         (display (if remote (concat "Remote " name) name)))
+    ;; `nil` for the icon argument to prevent duplicate file icons
+    (elline--seg display (elline--color 'bg-alt2) (elline--color 'fg) nil t)))
 
 (defvar-local elline--cached-project-name nil)
 (defvar-local elline--cached-project-root nil)
@@ -423,46 +479,64 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
 (add-hook 'after-change-major-mode-hook #'elline--update-project-cache)
 ;; (add-hook 'buffer-list-update-hook #'elline--update-project-cache)
 
-(defun elline--frame-has-user-tabs-p ()
-  (let ((tabs (frame-parameter nil 'tabs))) (> (length (if (listp tabs) tabs nil)) 1)))
-
 (defun elline--project ()
+  "Current project segment, shown independently from tabs."
   (when (and elline-show-project (> (window-width) 40))
     (unless elline--cached-project-root (elline--update-project-cache))
     (when elline--cached-project-name
-      (let ((icon (when (elline--frame-has-user-tabs-p) (elline--icon 'oct "repo" "📁"))))
-        (elline--seg elline--cached-project-name (elline--color 'bg-alt) (elline--color 'accent) icon)))))
+      (elline--seg elline--cached-project-name
+                   (elline--color 'bg-alt2)
+                   (elline--color 'accent)
+                   (elline--segment-marker "Proj:" 'oct "repo" "📁")
+                   t))))
 
 (defun elline--git ()
   (when (and vc-mode (stringp vc-mode) (string-match-p "^ Git" vc-mode))
     (let* ((branch (replace-regexp-in-string "^ Git[:-]?\\s-*" "" vc-mode))
            (dirty  (string-match-p "^ Git[:*]" vc-mode))
-           (icon   (elline--icon 'oct "git_branch" "")))
-      (elline--seg branch (elline--color 'bg-alt) (if dirty (elline--color 'warning) (elline--color 'fg)) icon))))
+           (icon   (elline--segment-marker "Git:" 'oct "git_branch" "")))
+      (elline--seg branch (elline--color 'bg-alt)
+                   (if dirty (elline--color 'warning) (elline--color 'fg))
+                   icon))))
 
 (defun elline--macro ()
   (when defining-kbd-macro
-    (elline--seg "REC" (elline--color 'error) (elline--color 'bg-main) (elline--icon 'fa "circle" "●") t)))
+    (elline--seg (if (eq elline-icon-provider 'labels) "Recording" "REC")
+                 (elline--color 'error)
+                 (elline--color 'bg-main)
+                 (elline--segment-marker "Recording:" 'fa "circle" "●")
+                 t)))
 
 (defun elline--selection ()
   (when (and (use-region-p) (> (window-width) 80))
-    (elline--seg (format "%dL %dC" (count-lines (region-beginning) (region-end)) (abs (- (region-end) (region-beginning))))
-                 (elline--color 'bg-alt) (elline--color 'fg))))
+    (elline--seg (elline--label-prefix
+                  "Selection:"
+                  (format "%dL %dC"
+                          (count-lines (region-beginning) (region-end))
+                          (abs (- (region-end) (region-beginning)))))
+                 (elline--color 'bg-alt)
+                 (elline--color 'fg))))
 
 (defun elline--major-mode ()
   (let* ((name (capitalize (string-trim (symbol-name major-mode) nil "-mode$")))
-         (icon (elline--icon 'mode nil "")))
+         (icon (elline--segment-marker "Type:" 'mode nil "")))
     (elline--seg name (elline--color 'bg-alt) (elline--color 'fg) icon)))
 
 (defun elline--process ()
   (when mode-line-process
     (let ((str (format-mode-line mode-line-process)))
-      (unless (string-blank-p str) (elline--seg str (elline--color 'bg-alt2) (elline--color 'accent))))))
+      (unless (string-blank-p str)
+        (elline--seg (elline--label-prefix "Proc:" str)
+                     (elline--color 'bg-alt2)
+                     (elline--color 'accent))))))
 
 (defun elline--lsp ()
   (when (> (window-width) 60)
     (when (or (bound-and-true-p lsp-mode) (bound-and-true-p eglot--managed-mode))
-      (elline--seg "LSP" (elline--color 'bg-alt) (elline--color 'success) (elline--icon 'codicon "symbol_method" "λ")))))
+      (elline--seg (if (eq elline-icon-provider 'labels) "Active" "LSP")
+                   (elline--color 'bg-alt)
+                   (elline--color 'success)
+                   (elline--segment-marker "LSP:" 'codicon "symbol_method" "λ")))))
 
 (defun elline--flycheck ()
   (when (and (bound-and-true-p flycheck-mode) (fboundp 'flycheck-count-errors) (> (window-width) 50))
@@ -472,9 +546,12 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
            (i (or (alist-get 'info counts) 0))
            (bg (elline--color 'bg-alt)))
       (concat
-       (elline--seg (format "%s %d" (elline--icon 'oct "x_circle" "✖") e) bg (if (> e 0) (elline--color 'error) (elline--color 'fg-dim)) nil t)
-       (elline--seg (format "%s %d" (elline--icon 'oct "alert" "⚠") w)    bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) nil t)
-       (elline--seg (format "%s %d" (elline--icon 'oct "info" "ℹ") i)    bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) nil t)))))
+       (elline--seg (number-to-string e) bg (if (> e 0) (elline--color 'error) (elline--color 'fg-dim))
+                    (elline--segment-marker "Err:" 'oct "x_circle" "✖") t)
+       (elline--seg (number-to-string w) bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim))
+                    (elline--segment-marker "Warn:" 'oct "alert" "⚠") t)
+       (elline--seg (number-to-string i) bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim))
+                    (elline--segment-marker "Info:" 'oct "info" "ℹ") t)))))
 
 (defun elline--flymake-counts ()
   "Return (errors warnings notes) in a single pass over diagnostics."
@@ -492,43 +569,79 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
     (pcase-let ((`(,e ,w ,i) (elline--flymake-counts))
                 (bg (elline--color 'bg-alt)))
       (concat
-       (elline--seg (format "%s %d" (elline--icon 'oct "x_circle" "✖") e) bg (if (> e 0) (elline--color 'error)   (elline--color 'fg-dim)) nil t)
-       (elline--seg (format "%s %d" (elline--icon 'oct "alert"    "⚠") w) bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim)) nil t)
-       (elline--seg (format "%s %d" (elline--icon 'oct "info"     "ℹ") i) bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim)) nil t)))))
+       (elline--seg (number-to-string e) bg (if (> e 0) (elline--color 'error)   (elline--color 'fg-dim))
+                    (elline--segment-marker "Err:" 'oct "x_circle" "✖") t)
+       (elline--seg (number-to-string w) bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim))
+                    (elline--segment-marker "Warn:" 'oct "alert" "⚠") t)
+       (elline--seg (number-to-string i) bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim))
+                    (elline--segment-marker "Info:" 'oct "info" "ℹ") t)))))
 
 (defun elline--encoding ()
   (when (and buffer-file-coding-system (> (window-width) 40))
     (let* ((sys      (symbol-name buffer-file-coding-system))
            (eol-type (coding-system-eol-type buffer-file-coding-system))
            (eol      (pcase eol-type (0 "LF") (1 "CRLF") (2 "CR") (_ "??")))
-           (coding   (cond ((string-match-p "utf-8" sys) "UTF-8") ((string-match-p "latin-1" sys) "LATIN-1") (t (upcase sys)))))
-      (elline--seg (format "%s %s" coding eol) (elline--color 'bg-alt2) (elline--color 'fg)))))
+           (coding   (cond ((string-match-p "utf-8" sys) "UTF-8")
+                           ((string-match-p "latin-1" sys) "LATIN-1")
+                           (t (upcase sys)))))
+      (elline--seg (elline--label-prefix "Enc:" (format "%s %s" coding eol))
+                   (elline--color 'bg-alt2)
+                   (elline--color 'fg)))))
 
 (defun elline--position ()
-  (elline--seg (format "%d:%d" (line-number-at-pos) (current-column)) (elline--color 'bg-alt) (elline--color 'fg)))
+  (elline--seg (elline--label-prefix "Pos:" (format "%d:%d" (line-number-at-pos) (current-column)))
+               (elline--color 'bg-alt) (elline--color 'fg)))
 
 (defun elline--percentage ()
   (when (> (window-width) 50)
-    (elline--seg (format-mode-line "%p") (elline--color 'bg-alt2) (elline--color 'fg-dim))))
+    (elline--seg (elline--label-prefix "Perc:" (format-mode-line "%p"))
+                 (elline--color 'bg-alt2) (elline--color 'fg-dim))))
 
 (defun elline--buffer-size ()
   (when (> (window-width) 60)
     (let ((size (buffer-size)))
-      (elline--seg (cond ((> size 1048576) (format "%.1fM" (/ size 1048576.0))) ((> size 1024) (format "%.1fk" (/ size 1024.0))) (t (format "%dB" size)))
-                   (elline--color 'bg-alt) (elline--color 'fg-dim)))))
+      (elline--seg
+       (elline--label-prefix
+        "Size:"
+        (cond ((> size 1048576) (format "%.1fM" (/ size 1048576.0)))
+              ((> size 1024)    (format "%.1fk" (/ size 1024.0)))
+              (t                (format "%dB" size))))
+       (elline--color 'bg-alt)
+       (elline--color 'fg-dim)))))
 
 (defun elline--time ()
   (when (and elline-show-time (> (window-width) 70))
-    (elline--seg (format-time-string "%H:%M") (elline--color 'bg-alt2) (elline--color 'accent) (elline--icon 'oct "clock" "⏱"))))
+    (elline--seg (format-time-string "%H:%M")
+                 (elline--color 'bg-alt2)
+                 (elline--color 'accent)
+                 (elline--segment-marker "Time:" 'oct "clock" "⏱"))))
 
 ;; Extensibility API
 ;; -------------------------------------------------------------------------
 
 (defvar elline-left-segments
-  '(elline--active-bar elline--evil elline--winum elline--status elline--buffer-name elline--macro elline--selection elline--major-mode elline--git elline--project elline--process))
+  '(elline--active-bar
+    elline--evil
+    elline--winum
+    elline--status
+    elline--tab
+    elline--project
+    elline--git
+    elline--buffer-name
+    elline--macro
+    elline--selection
+    elline--major-mode
+    ;; elline--git
+    elline--process))
 
 (defvar elline-right-segments
-  '(elline--lsp elline--flycheck elline--flymake elline--encoding elline--position elline--percentage elline--buffer-size elline--time))
+  '(elline--lsp elline--flycheck
+                elline--flymake
+                elline--encoding
+                elline--position
+                elline--percentage
+                elline--buffer-size
+                elline--time))
 
 (defmacro elline-def-segment (name bg fg &rest body)
   "Define a new modeline segment named NAME. Passes raw string to preserve icon fonts."
@@ -604,7 +717,10 @@ Use this after interactive setting changes so the effect is instant."
   (interactive)
   (setq elline-icon-provider
         (pcase elline-icon-provider
-          ('nerd-icons 'all-the-icons) ('all-the-icons 'none) ('none 'nerd-icons)))
+          ('nerd-icons (progn (message "Switching to all-the-icons") 'all-the-icons))
+          ('all-the-icons (progn (message "Switching to labels") 'labels))
+          ('labels (progn (message "Switching to none") 'none))
+          ('none (progn (message "Switching to nerd-icons") 'nerd-icons))))
   (elline--invalidate-cache-now))
 
 (defun elline-toggle-time ()
