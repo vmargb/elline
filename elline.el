@@ -440,10 +440,10 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
   (let* ((ro     buffer-read-only)
          (mod    (and (buffer-modified-p) (not ro)))
          (narrow (buffer-narrowed-p))
-         (label  (cond (ro "Read-only")
-                       (mod "Modified")
-                       (narrow "Narrowed")
-                       (t "Clean")))
+         (label  (cond (ro "Re")
+                       (mod "Mo")
+                       (narrow "Na")
+                       (t "Cl")))
          (icon   (cond (ro     (elline--segment-marker "State:" 'oct "lock" ""))
                        (mod    (elline--segment-marker "State:" 'oct "dot_fill" "●"))
                        (narrow (elline--segment-marker "State:" 'oct "screen_full" "▼"))
@@ -533,7 +533,7 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
 (defun elline--lsp ()
   (when (> (window-width) 60)
     (when (or (bound-and-true-p lsp-mode) (bound-and-true-p eglot--managed-mode))
-      (elline--seg (if (eq elline-icon-provider 'labels) "Active" "LSP")
+      (elline--seg (if (eq elline-icon-provider 'labels) "On" "LSP")
                    (elline--color 'bg-alt)
                    (elline--color 'success)
                    (elline--segment-marker "LSP:" 'codicon "symbol_method" "λ")))))
@@ -547,11 +547,11 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
            (bg (elline--color 'bg-alt)))
       (concat
        (elline--seg (number-to-string e) bg (if (> e 0) (elline--color 'error) (elline--color 'fg-dim))
-                    (elline--segment-marker "Err:" 'oct "x_circle" "✖") t)
+                    (elline--segment-marker "E:" 'oct "x_circle" "✖") t)
        (elline--seg (number-to-string w) bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim))
-                    (elline--segment-marker "Warn:" 'oct "alert" "⚠") t)
+                    (elline--segment-marker "W:" 'oct "alert" "⚠") t)
        (elline--seg (number-to-string i) bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim))
-                    (elline--segment-marker "Info:" 'oct "info" "ℹ") t)))))
+                    (elline--segment-marker "I:" 'oct "info" "ℹ") t)))))
 
 (defun elline--flymake-counts ()
   "Return (errors warnings notes) in a single pass over diagnostics."
@@ -570,11 +570,11 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
                 (bg (elline--color 'bg-alt)))
       (concat
        (elline--seg (number-to-string e) bg (if (> e 0) (elline--color 'error)   (elline--color 'fg-dim))
-                    (elline--segment-marker "Err:" 'oct "x_circle" "✖") t)
+                    (elline--segment-marker "E:" 'oct "x_circle" "✖") t)
        (elline--seg (number-to-string w) bg (if (> w 0) (elline--color 'warning) (elline--color 'fg-dim))
-                    (elline--segment-marker "Warn:" 'oct "alert" "⚠") t)
+                    (elline--segment-marker "W:" 'oct "alert" "⚠") t)
        (elline--seg (number-to-string i) bg (if (> i 0) (elline--color 'success) (elline--color 'fg-dim))
-                    (elline--segment-marker "Info:" 'oct "info" "ℹ") t)))))
+                    (elline--segment-marker "I:" 'oct "info" "ℹ") t)))))
 
 (defun elline--encoding ()
   (when (and buffer-file-coding-system (> (window-width) 40))
@@ -624,10 +624,10 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
     elline--evil
     elline--winum
     elline--status
+    elline--buffer-name
     elline--tab
     elline--project
     elline--git
-    elline--buffer-name
     elline--macro
     elline--selection
     elline--major-mode
@@ -683,12 +683,16 @@ Uses an absolute integer height to prevent icon scaling from stretching the line
 (defun elline--build ()
   (let* ((elline--build-colors (elline--snapshot-colors))
          (w           (window-width))
-         (default-bg  (elline--color 'bg-main))
+         ;; Sanitize the background: if the theme returns the symbol 'unspecified,
+         ;; force a safe dark fallback so it doesn't break child frames.
+         (raw-bg      (elline--color 'bg-main))
+         (default-bg  (if (eq raw-bg 'unspecified) "#1e1e2e" raw-bg))
          (left        (elline--build-left default-bg w))
          (right       (elline--build-right default-bg w))
          (align-width (if right (elline--right-align-width right) 0)))
     (list left
-          `(:propertize " " display ((space :align-to (- (+ right right-fringe right-margin) ,align-width))))
+          ;; Now default-bg is guaranteed to be a valid hex string like "#1e1e2e"
+          `(:propertize " " face (:background ,default-bg) display ((space :align-to (- (+ right right-fringe right-margin) ,align-width))))
           right)))
 
 (defun elline--apply-height ()
